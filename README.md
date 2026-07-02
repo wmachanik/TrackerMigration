@@ -123,17 +123,21 @@ Legacy Access names often differ from the target `dbo` schema. In `Migrate_*.sql
 |-----------|----------------|
 | `NextPrepDate` | `NextPreparationDate` |
 | `LastReoccurringDate` | `LastRecurringDate` |
-| `DoReoccuringOrders` | `DoReccuringOrders` |
+| `DoReoccuringOrders` | `DoRecurringOrders` |
+| `HadReoccurItems` | `HadRecurringItems` |
+| `ReoccurOrderID` | `RecurringOrderItemID` |
+| `ReoccuranceTypeTbl` | `RecurringTypesTbl` |
 | `PreferedAgent` / `PreferedAgentID` | `PreferredAgentID` |
 | `CustomerID` | `ContactID` (many tables) |
 
-See `Docs/DATETIME_TO_DATE_MIGRATION_CHECKLIST.md` for the full DATE migration and rename reference.
+See `Docs/DATETIME_TO_DATE_MIGRATION_CHECKLIST.md` and `Docs/RECURRING_SPELLING_REFERENCE.md`.
 
 ## Git helpers
 
 ```powershell
-.\Scripts\Git-CommitMigration.ps1 -Message "Describe your change"
-.\Scripts\Git-CommitMigration.ps1 -Message "Describe your change" -Push
+.\Scripts\UpdateGitHubRepo.ps1 -Message "Describe your change"
+.\Scripts\UpdateGitHubRepo.ps1                          # show help
+.\Scripts\Git-CommitMigration.ps1 -Message "..." -Push  # same idea, optional -Push only
 ```
 
 Use a GitHub **Personal Access Token** (not your account password) when pushing.

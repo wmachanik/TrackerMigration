@@ -41,7 +41,7 @@
   ],
   "Plan": {
     "Classification": "Rename",
-    "TargetTable": "RecurranceTypesTbl",
+    "TargetTable": "RecurringTypesTbl",
     "PreserveIdsOnInsert": false,
     "Reviewed": false,
     "Ignore": false,

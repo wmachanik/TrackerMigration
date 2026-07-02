@@ -990,7 +990,7 @@ GO
 -- Skipped: referenced table not in model for [RecurringOrderItemsTbl].[RecurringOrderID] -> [Header]
 IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_RecurringOrderItemsTbl_RecurringTypeID' AND parent_object_id = OBJECT_ID(N'[RecurringOrderItemsTbl]'))
 BEGIN
-    ALTER TABLE [RecurringOrderItemsTbl] WITH NOCHECK ADD CONSTRAINT [FK_RecurringOrderItemsTbl_RecurringTypeID] FOREIGN KEY([RecurringTypeID]) REFERENCES [RecurranceTypesTbl]([RecurringTypeID]);
+    ALTER TABLE [RecurringOrderItemsTbl] WITH NOCHECK ADD CONSTRAINT [FK_RecurringOrderItemsTbl_RecurringTypeID] FOREIGN KEY([RecurringTypeID]) REFERENCES [RecurringTypesTbl]([RecurringTypeID]);
 END
 GO
 

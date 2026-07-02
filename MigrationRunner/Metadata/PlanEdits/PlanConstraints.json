@@ -508,7 +508,7 @@
       "ColumnTypes": {}
     },
     {
-      "Table": "RecurranceTypesTbl",
+      "Table": "RecurringTypesTbl",
       "PrimaryKey": [
         "RecurringTypeID"
       ],
@@ -1051,7 +1051,7 @@
         },
         {
           "Column": "RecurringTypeID",
-          "RefTable": "RecurranceTypesTbl",
+          "RefTable": "RecurringTypesTbl",
           "RefColumn": "RecurringTypeID"
         },
         {

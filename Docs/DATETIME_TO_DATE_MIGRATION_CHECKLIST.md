@@ -58,8 +58,11 @@ Some Access columns were renamed in `CreateTables_LATEST_FIXED.sql`. In `Migrate
 |------------------|-----------------------------------------------|
 | `NextPrepDate` | `NextPreparationDate` (SentRemindersLogTbl, TempCoffeecheckupCustomerTbl) |
 | `NextRoastDate` | `NextPreparationDate` (ClosureDatesTbl) |
-| `LastReoccurringDate` | `LastRecurringDate` (SysDataTbl) |
-| `DoReoccuringOrders` | `DoReccuringOrders` (SysDataTbl) |
+| `LastReoccurringDate` | `LastRecurringDate` |
+| `DoReoccuringOrders` | `DoRecurringOrders` |
+| `HadReoccurItems` | `HadRecurringItems` |
+| `ReoccurOrderID` | `RecurringOrderItemID` |
+| `ReoccuranceTypeTbl` | `RecurringTypesTbl` |
 | `PreferedAgent` / `PreferedAgentID` | `PreferredAgentID` (ContactsTbl, TempCoffeecheckupCustomerTbl) |
 | `PreperationDate` / `NextPreperationDate` | `PreparationDate` / `NextPreparationDate` (NextPreparationDateByAreasTbl) |
 

@@ -39,7 +39,7 @@
 -- [PredictedOrdersTbl] Class=Copy Target=PredictedOrdersTbl EmittedCols=11
 -- [PrepTypesTbl] Class=Copy Target=ItemPrepTypesTbl EmittedCols=3
 -- [PriceLevelsTbl] Class=Copy Target=PriceLevelsTbl EmittedCols=5
--- [ReoccuranceTypeTbl] Class=Copy Target=RecurranceTypesTbl EmittedCols=2
+-- [ReoccuranceTypeTbl] Class=Copy Target=RecurringTypesTbl EmittedCols=2
 -- [ReoccuringOrderTbl] Class=Normalize Header=RecurringOrdersTbl Lines=RecurringOrderItemsTbl Emitted(H/L)=5/9 Synth=[NewHeaderKey=RecurringOrderID, NewLineKey=RecurringOrderItemID, LinkFK=RecurringOrderID] 
 -- [RepairFaultsTbl] Class=Copy Target=RepairFaultsTbl EmittedCols=4
 -- [RepairStatusesTbl] Class=Copy Target=RepairStatusesTbl EmittedCols=6
@@ -774,20 +774,20 @@ GO
     );
 GO
 
--- Drop FKs referencing or owned by [RecurranceTypesTbl]
+-- Drop FKs referencing or owned by [RecurringTypesTbl]
 DECLARE @sql nvarchar(max) = N'';
 SELECT @sql = @sql + N'ALTER TABLE ' + QUOTENAME(SCHEMA_NAME(o.schema_id)) + N'.' + QUOTENAME(OBJECT_NAME(fk.parent_object_id)) + N' DROP CONSTRAINT ' + QUOTENAME(fk.name) + N';' + CHAR(13)
 FROM sys.foreign_keys fk
 JOIN sys.objects o ON fk.parent_object_id = o.object_id
-WHERE fk.parent_object_id = OBJECT_ID(N'[RecurranceTypesTbl]') OR fk.referenced_object_id = OBJECT_ID(N'[RecurranceTypesTbl]');
+WHERE fk.parent_object_id = OBJECT_ID(N'[RecurringTypesTbl]') OR fk.referenced_object_id = OBJECT_ID(N'[RecurringTypesTbl]');
 IF LEN(@sql) > 0 EXEC sp_executesql @sql;
-IF OBJECT_ID(N'[RecurranceTypesTbl]', N'U') IS NOT NULL DROP TABLE [RecurranceTypesTbl];
+IF OBJECT_ID(N'[RecurringTypesTbl]', N'U') IS NOT NULL DROP TABLE [RecurringTypesTbl];
 GO
-    CREATE TABLE [RecurranceTypesTbl]
+    CREATE TABLE [RecurringTypesTbl]
     (
         [RecurringTypeID] INT IDENTITY(1,1) NOT NULL,
         [RecurringTypeDesc] NVARCHAR(255) NULL
-        , CONSTRAINT [PK_RecurranceTypesTbl] PRIMARY KEY CLUSTERED ([RecurringTypeID])
+        , CONSTRAINT [PK_RecurringTypesTbl] PRIMARY KEY CLUSTERED ([RecurringTypeID])
     );
 GO
 
@@ -969,7 +969,7 @@ GO
         [NextPreparationDate] DATE NULL,
         [ReminderSent] BIT NULL,
         [HadAutoFulfilItem] BIT NULL,
-        [HadRecurrItems] BIT NULL
+        [HadRecurringItems] BIT NULL
         , CONSTRAINT [PK_SentRemindersLogTbl] PRIMARY KEY CLUSTERED ([ReminderID])
     );
 GO
@@ -987,7 +987,7 @@ GO
     (
         [ID] INT IDENTITY(1,1) NOT NULL,
         [LastRecurringDate] DATE NULL,
-        [DoReccuringOrders] BIT NULL,
+        [DoRecurringOrders] BIT NULL,
         [DateLastPrepDateCalcd] DATE NULL,
         [MinReminderDate] DATE NULL,
         [GroupReferenceItemID] INT NULL,

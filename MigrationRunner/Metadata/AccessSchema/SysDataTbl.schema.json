@@ -121,7 +121,7 @@
       },
       {
         "Source": "DoReoccuringOrders",
-        "Target": "DoReccuringOrders",
+        "Target": "DoRecurringOrders",
         "Action": "Rename",
         "Expression": null
       },

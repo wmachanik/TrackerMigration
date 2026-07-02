@@ -145,7 +145,7 @@
       },
       {
         "Source": "HadReoccurItems",
-        "Target": "HadRecurrItems",
+        "Target": "HadRecurringItems",
         "Action": "Rename",
         "Expression": null
       }
