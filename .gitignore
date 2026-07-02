@@ -1,0 +1,23 @@
+# Build output
+bin/
+obj/
+[Bb]uild/
+[Dd]ebug/
+[Rr]elease/
+
+# Visual Studio / Rider
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Local connection settings (copy MigrationConfig.example.json)
+MigrationRunner/MigrationConfig.json
+
+# Migration run logs and flags
+MigrationRunner/Metadata/PlanEdits/Logs/
+
+# OS
+Thumbs.db
+.DS_Store

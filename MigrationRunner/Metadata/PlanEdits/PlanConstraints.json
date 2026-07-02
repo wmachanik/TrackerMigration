@@ -1,0 +1,1075 @@
+{
+  "ExcludeTables": null,
+  "Tables": [
+    {
+      "Table": "AwayReasonTbl",
+      "PrimaryKey": [
+        "AwayReasonID"
+      ],
+      "IdentityColumns": [
+        "AwayReasonID"
+      ],
+      "ForeignKeys": [],
+      "NotNullColumns": [
+        "AwayReasonID"
+      ],
+      "ColumnTypes": {}
+    },
+    {
+      "Table": "AreaPrepDaysTbl",
+      "PrimaryKey": [
+        "AreaPrepDaysID"
+      ],
+      "IdentityColumns": [
+        "AreaPrepDaysID"
+      ],
+      "ForeignKeys": [
+        {
+          "Column": "AreaID",
+          "RefTable": "AreasTbl",
+          "RefColumn": "AreaID"
+        }
+      ],
+      "NotNullColumns": [
+        "AreaPrepDaysID"
+      ],
+      "ColumnTypes": {}
+    },
+    {
+      "Table": "AreasTbl",
+      "PrimaryKey": [
+        "AreaID"
+      ],
+      "IdentityColumns": [
+        "AreaID"
+      ],
+      "ForeignKeys": [],
+      "NotNullColumns": [
+        "AreaID"
+      ],
+      "ColumnTypes": {}
+    },
+    {
+      "Table": "ContactsAwayPeriodTbl",
+      "PrimaryKey": [
+        "AwayPeriodID"
+      ],
+      "IdentityColumns": [
+        "AwayPeriodID"
+      ],
+      "ForeignKeys": [
+        {
+          "Column": "ContactID",
+          "RefTable": "ContactsTbl",
+          "RefColumn": "ContactID"
+        }
+      ],
+      "NotNullColumns": [
+        "AwayPeriodID"
+      ],
+      "ColumnTypes": {}
+    },
+    {
+      "Table": "ContactsItemSvcSummaryTbl",
+      "PrimaryKey": [
+        "ContactsItemSvcSummaryId"
+      ],
+      "IdentityColumns": [
+        "ContactsItemSvcSummaryId"
+      ],
+      "ForeignKeys": [
+        {
+          "Column": "ContactID",
+          "RefTable": "ContactsTbl",
+          "RefColumn": "ContactID"
+        },
+        {
+          "Column": "ItemServiceTypeID",
+          "RefTable": "ItemServiceTypesTbl",
+          "RefColumn": "ItemServiceTypeID"
+        }
+      ],
+      "NotNullColumns": [
+        "ContactsItemSvcSummaryId"
+      ],
+      "ColumnTypes": {}
+    },
+    {
+      "Table": "ContactsItemsPredictedTbl",
+      "PrimaryKey": [
+        "ContactsItemsPredictedId"
+      ],
+      "IdentityColumns": [
+        "ContactsItemsPredictedId"
+      ],
+      "ForeignKeys": [
+        {
+          "Column": "ContactID",
+          "RefTable": "ContactsTbl",
+          "RefColumn": "ContactID"
+        }
+      ],
+      "NotNullColumns": [
+        "ContactsItemsPredictedId"
+      ],
+      "ColumnTypes": {}
+    },
+    {
+      "Table": "ClosureDatesTbl",
+      "PrimaryKey": [
+        "ClosureDateID"
+      ],
+      "IdentityColumns": [
+        "ClosureDateID"
+      ],
+      "ForeignKeys": [],
+      "NotNullColumns": [
+        "ClosureDateID"
+      ],
+      "ColumnTypes": {}
+    },
+    {
+      "Table": "ContactsAccInfoTbl",
+      "PrimaryKey": [
+        "ContactsAccInfoID"
+      ],
+      "IdentityColumns": [
+        "ContactsAccInfoID"
+      ],
+      "ForeignKeys": [
+        {
+          "Column": "ContactID",
+          "RefTable": "ContactsTbl",
+          "RefColumn": "ContactID"
+        },
+        {
+          "Column": "PaymentTermID",
+          "RefTable": "PaymentTermsTbl",
+          "RefColumn": "PaymentTermID"
+        },
+        {
+          "Column": "PriceLevelID",
+          "RefTable": "PriceLevelsTbl",
+          "RefColumn": "PriceLevelID"
+        },
+        {
+          "Column": "InvoiceTypeID",
+          "RefTable": "InvoiceTypesTbl",
+          "RefColumn": "InvoiceTypeID"
+        }
+      ],
+      "NotNullColumns": [
+        "ContactsAccInfoID"
+      ],
+      "ColumnTypes": {}
+    },
+    {
+      "Table": "ContactsTbl",
+      "PrimaryKey": [
+        "ContactID"
+      ],
+      "IdentityColumns": [
+        "ContactID"
+      ],
+      "ForeignKeys": [
+        {
+          "Column": "ContactTypeID",
+          "RefTable": "ContactTypesTbl",
+          "RefColumn": "ContactTypeID"
+        },
+        {
+          "Column": "EquipTypeID",
+          "RefTable": "EquipTypesTbl",
+          "RefColumn": "EquipTypeID"
+        },
+        {
+          "Column": "ItemPrefID",
+          "RefTable": "ItemsTbl",
+          "RefColumn": "ItemID"
+        },
+        {
+          "Column": "PrefItemPrepTypeID",
+          "RefTable": "ItemPrepTypesTbl",
+          "RefColumn": "ItemPrepID"
+        },
+        {
+          "Column": "PrefItemPackagingID",
+          "RefTable": "ItemPackagingTbl",
+          "RefColumn": "ItemPackagingId"
+        },
+        {
+          "Column": "SecondaryItemPrefID",
+          "RefTable": "ItemsTbl",
+          "RefColumn": "ItemID"
+        },
+        {
+          "Column": "PreferedAgentID",
+          "RefTable": "PeopleTbl",
+          "RefColumn": "PersonID"
+        },
+        {
+          "Column": "SalesAgentID",
+          "RefTable": "PeopleTbl",
+          "RefColumn": "PersonID"
+        }
+      ],
+      "NotNullColumns": [
+        "ContactID"
+      ],
+      "ColumnTypes": {}
+    },
+    {
+      "Table": "ContactTrackedServiceItemsTbl",
+      "PrimaryKey": [
+        "ContactTrackedServiceItemsID"
+      ],
+      "IdentityColumns": [
+        "ContactTrackedServiceItemsID"
+      ],
+      "ForeignKeys": [
+        {
+          "Column": "ContactTypeID",
+          "RefTable": "ContactsTbl",
+          "RefColumn": "ContactID"
+        },
+        {
+          "Column": "ItemServiceTypeID",
+          "RefTable": "ItemServiceTypesTbl",
+          "RefColumn": "ItemServiceTypeID"
+        }
+      ],
+      "NotNullColumns": [
+        "ContactTrackedServiceItemsID"
+      ],
+      "ColumnTypes": {}
+    },
+    {
+      "Table": "ContactTypesTbl",
+      "PrimaryKey": [
+        "ContactTypeID"
+      ],
+      "IdentityColumns": [
+        "ContactTypeID"
+      ],
+      "ForeignKeys": [],
+      "NotNullColumns": [
+        "ContactTypeID"
+      ],
+      "ColumnTypes": {}
+    },
+    {
+      "Table": "EquipTypesTbl",
+      "PrimaryKey": [
+        "EquipTypeID"
+      ],
+      "IdentityColumns": [
+        "EquipTypeID"
+      ],
+      "ForeignKeys": [],
+      "NotNullColumns": [
+        "EquipTypeID"
+      ],
+      "ColumnTypes": {}
+    },
+    {
+      "Table": "HolidayClosuresTbl",
+      "PrimaryKey": [
+        "HolidayClosureID"
+      ],
+      "IdentityColumns": [
+        "HolidayClosureID"
+      ],
+      "ForeignKeys": [],
+      "NotNullColumns": [
+        "HolidayClosureID"
+      ],
+      "ColumnTypes": {}
+    },
+    {
+      "Table": "InvoiceTypesTbl",
+      "PrimaryKey": [
+        "InvoiceTypeID"
+      ],
+      "IdentityColumns": [
+        "InvoiceTypeID"
+      ],
+      "ForeignKeys": [],
+      "NotNullColumns": [
+        "InvoiceTypeID"
+      ],
+      "ColumnTypes": {}
+    },
+    {
+      "Table": "ItemGroupsTbl",
+      "PrimaryKey": [
+        "ItemGroupID"
+      ],
+      "IdentityColumns": [
+        "ItemGroupID"
+      ],
+      "ForeignKeys": [
+        {
+          "Column": "GroupReferenceItemID",
+          "RefTable": "ItemsTbl",
+          "RefColumn": "ItemID"
+        },
+        {
+          "Column": "ItemID",
+          "RefTable": "ItemsTbl",
+          "RefColumn": "ItemID"
+        }
+      ],
+      "NotNullColumns": [
+        "ItemGroupID"
+      ],
+      "ColumnTypes": {}
+    },
+    {
+      "Table": "ItemsTbl",
+      "PrimaryKey": [
+        "ItemID"
+      ],
+      "IdentityColumns": [
+        "ItemID"
+      ],
+      "ForeignKeys": [
+        {
+          "Column": "ItemServiceTypeID",
+          "RefTable": "ItemServiceTypesTbl",
+          "RefColumn": "ItemServiceTypeID"
+        },
+        {
+          "Column": "ReplacementItemID",
+          "RefTable": "ItemsTbl",
+          "RefColumn": "ItemID"
+        },
+        {
+          "Column": "ItemUnitID",
+          "RefTable": "ItemUnitsTbl",
+          "RefColumn": "ItemUnitID"
+        }
+      ],
+      "NotNullColumns": [
+        "ItemID"
+      ],
+      "ColumnTypes": {}
+    },
+    {
+      "Table": "ItemUnitsTbl",
+      "PrimaryKey": [
+        "ItemUnitID"
+      ],
+      "IdentityColumns": [
+        "ItemUnitID"
+      ],
+      "ForeignKeys": [],
+      "NotNullColumns": [
+        "ItemUnitID"
+      ],
+      "ColumnTypes": {}
+    },
+    {
+      "Table": "ContactsItemUsageTbl",
+      "PrimaryKey": [
+        "ContactItemUsageLineNo"
+      ],
+      "IdentityColumns": [
+        "ContactItemUsageLineNo"
+      ],
+      "ForeignKeys": [
+        {
+          "Column": "ContactID",
+          "RefTable": "ContactsTbl",
+          "RefColumn": "ContactID"
+        },
+        {
+          "Column": "ItemProvidedID",
+          "RefTable": "ItemsTbl",
+          "RefColumn": "ItemID"
+        },
+        {
+          "Column": "ItemPrepTypeID",
+          "RefTable": "ItemPrepTypesTbl",
+          "RefColumn": "ItemPrepID"
+        },
+        {
+          "Column": "ItemPackagingID",
+          "RefTable": "ItemPackagingTbl",
+          "RefColumn": "ItemPackagingId"
+        }
+      ],
+      "NotNullColumns": [
+        "ContactItemUsageLineNo"
+      ],
+      "ColumnTypes": {}
+    },
+    {
+      "Table": "EquipConditionsTbl",
+      "PrimaryKey": [
+        "EquipConditionID"
+      ],
+      "IdentityColumns": [
+        "EquipConditionID"
+      ],
+      "ForeignKeys": [],
+      "NotNullColumns": [
+        "EquipConditionID"
+      ],
+      "ColumnTypes": {}
+    },
+    {
+      "Table": "NextPrepDateByAreasTbl",
+      "PrimaryKey": [
+        "NextPrepDayID"
+      ],
+      "IdentityColumns": [
+        "NextPrepDayID"
+      ],
+      "ForeignKeys": [
+        {
+          "Column": "AreaID",
+          "RefTable": "AreasTbl",
+          "RefColumn": "AreaID"
+        }
+      ],
+      "NotNullColumns": [
+        "NextPrepDayID"
+      ],
+      "ColumnTypes": {}
+    },
+    {
+      "Table": "ItemPackagingsTbl",
+      "PrimaryKey": [
+        "ItemPackagingID"
+      ],
+      "IdentityColumns": [
+        "ItemPackagingID"
+      ],
+      "ForeignKeys": [],
+      "NotNullColumns": [
+        "ItemPackagingID"
+      ],
+      "ColumnTypes": {}
+    },
+    {
+      "Table": "PaymentTermsTbl",
+      "PrimaryKey": [
+        "PaymentTermID"
+      ],
+      "IdentityColumns": [
+        "PaymentTermID"
+      ],
+      "ForeignKeys": [],
+      "NotNullColumns": [
+        "PaymentTermID"
+      ],
+      "ColumnTypes": {}
+    },
+    {
+      "Table": "PeopleTbl",
+      "PrimaryKey": [
+        "PersonID"
+      ],
+      "IdentityColumns": [
+        "PersonID"
+      ],
+      "ForeignKeys": [],
+      "NotNullColumns": [
+        "PersonID"
+      ],
+      "ColumnTypes": {}
+    },
+    {
+      "Table": "ItemPrepTypesTbl",
+      "PrimaryKey": [
+        "ItemPrepID"
+      ],
+      "IdentityColumns": [
+        "ItemPrepID"
+      ],
+      "ForeignKeys": [],
+      "NotNullColumns": [
+        "ItemPrepID"
+      ],
+      "ColumnTypes": {}
+    },
+    {
+      "Table": "PriceLevelsTbl",
+      "PrimaryKey": [
+        "PriceLevelID"
+      ],
+      "IdentityColumns": [
+        "PriceLevelID"
+      ],
+      "ForeignKeys": [],
+      "NotNullColumns": [
+        "PriceLevelID"
+      ],
+      "ColumnTypes": {}
+    },
+    {
+      "Table": "RecurranceTypesTbl",
+      "PrimaryKey": [
+        "RecurringTypeID"
+      ],
+      "IdentityColumns": [
+        "RecurringTypeID"
+      ],
+      "ForeignKeys": [],
+      "NotNullColumns": [
+        "RecurringTypeID"
+      ],
+      "ColumnTypes": {}
+    },
+    {
+      "Table": "RepairFaultsTbl",
+      "PrimaryKey": [
+        "RepairFaultID"
+      ],
+      "IdentityColumns": [
+        "RepairFaultID"
+      ],
+      "ForeignKeys": [],
+      "NotNullColumns": [
+        "RepairFaultID"
+      ],
+      "ColumnTypes": {}
+    },
+    {
+      "Table": "RepairStatusesTbl",
+      "PrimaryKey": [
+        "RepairStatusID"
+      ],
+      "IdentityColumns": [
+        "RepairStatusID"
+      ],
+      "ForeignKeys": [],
+      "NotNullColumns": [
+        "RepairStatusID"
+      ],
+      "ColumnTypes": {}
+    },
+    {
+      "Table": "RepairsTbl",
+      "PrimaryKey": [
+        "RepairID"
+      ],
+      "IdentityColumns": [
+        "RepairID"
+      ],
+      "ForeignKeys": [
+        {
+          "Column": "ContactID",
+          "RefTable": "ContactsTbl",
+          "RefColumn": "ContactID"
+        },
+        {
+          "Column": "EquipTypeID",
+          "RefTable": "EquipTypesTbl",
+          "RefColumn": "EquipTypeID"
+        },
+        {
+          "Column": "EquipConditionID",
+          "RefTable": "EquipConditionsTbl",
+          "RefColumn": "EquipConditionID"
+        },
+        {
+          "Column": "RepairFaultID",
+          "RefTable": "RepairFaultsTbl",
+          "RefColumn": "RepairFaultID"
+        },
+        {
+          "Column": "RepairStatusID",
+          "RefTable": "RepairStatusesTbl",
+          "RefColumn": "RepairStatusID"
+        },
+        {
+          "Column": "RelatedOrderID",
+          "RefTable": "OrdersTbl",
+          "RefColumn": "OrderID"
+        }
+      ],
+      "NotNullColumns": [
+        "RepairID"
+      ],
+      "ColumnTypes": {}
+    },
+    {
+      "Table": "SectionTypesTbl",
+      "PrimaryKey": [
+        "SectionID"
+      ],
+      "IdentityColumns": [
+        "SectionID"
+      ],
+      "ForeignKeys": [],
+      "NotNullColumns": [
+        "SectionID"
+      ],
+      "ColumnTypes": {}
+    },
+    {
+      "Table": "SendCheckupEmailTextsTbl",
+      "PrimaryKey": [
+        "SCEMTID"
+      ],
+      "IdentityColumns": [
+        "SCEMTID"
+      ],
+      "ForeignKeys": [],
+      "NotNullColumns": [
+        "SCEMTID"
+      ],
+      "ColumnTypes": {}
+    },
+    {
+      "Table": "SentRemindersLogTbl",
+      "PrimaryKey": [
+        "ReminderID"
+      ],
+      "IdentityColumns": [
+        "ReminderID"
+      ],
+      "ForeignKeys": [
+        {
+          "Column": "ContactID",
+          "RefTable": "ContactsTbl",
+          "RefColumn": "ContactID"
+        }
+      ],
+      "NotNullColumns": [
+        "ReminderID"
+      ],
+      "ColumnTypes": {}
+    },
+    {
+      "Table": "ItemServiceTypesTbl",
+      "PrimaryKey": [
+        "ItemServiceTypeID"
+      ],
+      "IdentityColumns": [
+        "ItemServiceTypeID"
+      ],
+      "ForeignKeys": [
+        {
+          "Column": "ItemPackagingID",
+          "RefTable": "ItemPackagingTbl",
+          "RefColumn": "ItemPackagingId"
+        },
+        {
+          "Column": "ItemPrepTypeID",
+          "RefTable": "ItemPrepTypesTbl",
+          "RefColumn": "ItemPrepID"
+        }
+      ],
+      "NotNullColumns": [
+        "ItemServiceTypeID"
+      ],
+      "ColumnTypes": {}
+    },
+    {
+      "Table": "SysDataTbl",
+      "PrimaryKey": [
+        "ID"
+      ],
+      "IdentityColumns": [
+        "ID"
+      ],
+      "ForeignKeys": [
+        {
+          "Column": "GroupReferenceItemID",
+          "RefTable": "ItemsTbl",
+          "RefColumn": "ItemID"
+        }
+      ],
+      "NotNullColumns": [
+        "ID"
+      ],
+      "ColumnTypes": {}
+    },
+    {
+      "Table": "TempCoffeecheckupCustomerTbl",
+      "PrimaryKey": [
+        "TCCID"
+      ],
+      "IdentityColumns": [
+        "TCCID"
+      ],
+      "ForeignKeys": [
+        {
+          "Column": "ContactID",
+          "RefTable": "ContactsTbl",
+          "RefColumn": "ContactID"
+        },
+        {
+          "Column": "AreaID",
+          "RefTable": "AreasTbl",
+          "RefColumn": "AreaID"
+        },
+        {
+          "Column": "ContactTypeID",
+          "RefTable": "ContactTypesTbl",
+          "RefColumn": "ContactTypeID"
+        },
+        {
+          "Column": "EquipTypeID",
+          "RefTable": "EquipTypesTbl",
+          "RefColumn": "EquipTypeID"
+        },
+        {
+          "Column": "PreferedAgentID",
+          "RefTable": "PeopleTbl",
+          "RefColumn": "PersonID"
+        },
+        {
+          "Column": "SalesAgentID",
+          "RefTable": "PeopleTbl",
+          "RefColumn": "PersonID"
+        }
+      ],
+      "NotNullColumns": [
+        "TCCID"
+      ],
+      "ColumnTypes": {}
+    },
+    {
+      "Table": "TempCoffeecheckupItemsTbl",
+      "PrimaryKey": [
+        "TCIID"
+      ],
+      "IdentityColumns": [
+        "TCIID"
+      ],
+      "ForeignKeys": [
+        {
+          "Column": "ContactID",
+          "RefTable": "ContactsTbl",
+          "RefColumn": "ContactID"
+        },
+        {
+          "Column": "ItemID",
+          "RefTable": "ItemsTbl",
+          "RefColumn": "ItemID"
+        },
+        {
+          "Column": "ItemPrepID",
+          "RefTable": "ItemPrepTypesTbl",
+          "RefColumn": "ItemPrepID"
+        },
+        {
+          "Column": "ItemPackagingID",
+          "RefTable": "ItemPackagingTbl",
+          "RefColumn": "ItemPackagingId"
+        },
+        {
+          "Column": "RecurringOrderItemID",
+          "RefTable": "RecurringOrderItemsTbl",
+          "RefColumn": "RecurringOrderItemID"
+        }
+      ],
+      "NotNullColumns": [
+        "TCIID"
+      ],
+      "ColumnTypes": {}
+    },
+    {
+      "Table": "TempOrdersHeaderTbl",
+      "PrimaryKey": [
+        "TOHeaderID"
+      ],
+      "IdentityColumns": [
+        "TOHeaderID"
+      ],
+      "ForeignKeys": [
+        {
+          "Column": "ContactID",
+          "RefTable": "ContactsTbl",
+          "RefColumn": "ContactID"
+        },
+        {
+          "Column": "ToBeDeliveredByID",
+          "RefTable": "PeopleTbl",
+          "RefColumn": "PersonID"
+        }
+      ],
+      "NotNullColumns": [
+        "TOHeaderID"
+      ],
+      "ColumnTypes": {}
+    },
+    {
+      "Table": "TempOrdersLinesTbl",
+      "PrimaryKey": [
+        "TOLineID"
+      ],
+      "IdentityColumns": [
+        "TOLineID"
+      ],
+      "ForeignKeys": [
+        {
+          "Column": "TOHeaderID",
+          "RefTable": "TempOrdersHeaderTbl",
+          "RefColumn": "TOHeaderID"
+        },
+        {
+          "Column": "ItemID",
+          "RefTable": "ItemsTbl",
+          "RefColumn": "ItemID"
+        },
+        {
+          "Column": "ItemServiceTypeID",
+          "RefTable": "ItemServiceTypesTbl",
+          "RefColumn": "ItemServiceTypeID"
+        },
+        {
+          "Column": "ItemPackagingID",
+          "RefTable": "ItemPackagingTbl",
+          "RefColumn": "ItemPackagingId"
+        },
+        {
+          "Column": "OriginalOrderID",
+          "RefTable": "OrdersTbl",
+          "RefColumn": "OrderID"
+        }
+      ],
+      "NotNullColumns": [
+        "TOLineID"
+      ],
+      "ColumnTypes": {}
+    },
+    {
+      "Table": "TempOrdersTbl",
+      "PrimaryKey": [
+        "TempOrderID"
+      ],
+      "IdentityColumns": [
+        "TempOrderID"
+      ],
+      "ForeignKeys": [
+        {
+          "Column": "OrderID",
+          "RefTable": "OrdersTbl",
+          "RefColumn": "OrderID"
+        },
+        {
+          "Column": "ContactID",
+          "RefTable": "ContactsTbl",
+          "RefColumn": "ContactID"
+        },
+        {
+          "Column": "ItemID",
+          "RefTable": "ItemsTbl",
+          "RefColumn": "ItemID"
+        },
+        {
+          "Column": "ItemServiceTypeID",
+          "RefTable": "ItemServiceTypesTbl",
+          "RefColumn": "ItemServiceTypeID"
+        },
+        {
+          "Column": "ItemPrepTypeID",
+          "RefTable": "ItemPrepTypesTbl",
+          "RefColumn": "ItemPrepID"
+        },
+        {
+          "Column": "ItemPackagingID",
+          "RefTable": "ItemPackagingTbl",
+          "RefColumn": "ItemPackagingId"
+        }
+      ],
+      "NotNullColumns": [
+        "TempOrderID"
+      ],
+      "ColumnTypes": {}
+    },
+    {
+      "Table": "TotalCountTrackerTbl",
+      "PrimaryKey": [
+        "TotalCounterTrackerID"
+      ],
+      "IdentityColumns": [
+        "TotalCounterTrackerID"
+      ],
+      "ForeignKeys": [],
+      "NotNullColumns": [
+        "TotalCounterTrackerID"
+      ],
+      "ColumnTypes": {}
+    },
+    {
+      "Table": "TrackedServiceItemsTbl",
+      "PrimaryKey": [
+        "TrackerServiceItemID"
+      ],
+      "IdentityColumns": [
+        "TrackerServiceItemID"
+      ],
+      "ForeignKeys": [
+        {
+          "Column": "ItemServiceTypeID",
+          "RefTable": "ItemServiceTypesTbl",
+          "RefColumn": "ItemServiceTypeID"
+        }
+      ],
+      "NotNullColumns": [
+        "TrackerServiceItemID"
+      ],
+      "ColumnTypes": {}
+    },
+    {
+      "Table": "TransactionTypesTbl",
+      "PrimaryKey": [
+        "TransactionID"
+      ],
+      "IdentityColumns": [
+        "TransactionID"
+      ],
+      "ForeignKeys": [],
+      "NotNullColumns": [
+        "TransactionID"
+      ],
+      "ColumnTypes": {}
+    },
+    {
+      "Table": "UsedItemGroupsTbl",
+      "PrimaryKey": [
+        "UsedItemGroupID"
+      ],
+      "IdentityColumns": [
+        "UsedItemGroupID"
+      ],
+      "ForeignKeys": [
+        {
+          "Column": "ContactID",
+          "RefTable": "ContactsTbl",
+          "RefColumn": "ContactID"
+        },
+        {
+          "Column": "GroupReferenceItemID",
+          "RefTable": "ItemGroupsTbl",
+          "RefColumn": "ItemGroupID"
+        },
+        {
+          "Column": "LastItemID",
+          "RefTable": "ItemsTbl",
+          "RefColumn": "ItemID"
+        }
+      ],
+      "NotNullColumns": [
+        "UsedItemGroupID"
+      ],
+      "ColumnTypes": {}
+    },
+    {
+      "Table": "OrdersTbl",
+      "PrimaryKey": [
+        "OrderID"
+      ],
+      "IdentityColumns": [
+        "OrderID"
+      ],
+      "ForeignKeys": [
+        {
+          "Column": "ContactID",
+          "RefTable": "ContactsTbl",
+          "RefColumn": "ContactID"
+        },
+        {
+          "Column": "ToBeDeliveredByID",
+          "RefTable": "PeopleTbl",
+          "RefColumn": "PersonID"
+        }
+      ],
+      "NotNullColumns": [
+        "OrderID"
+      ],
+      "ColumnTypes": {}
+    },
+    {
+      "Table": "OrderLinesTbl",
+      "PrimaryKey": [
+        "OrderLineID"
+      ],
+      "IdentityColumns": [
+        "OrderLineID"
+      ],
+      "ForeignKeys": [
+        {
+          "Column": "OrderID",
+          "RefTable": "Header",
+          "RefColumn": "HeaderId"
+        },
+        {
+          "Column": "ItemID",
+          "RefTable": "ItemsTbl",
+          "RefColumn": "ItemID"
+        },
+        {
+          "Column": "PrepTypeID",
+          "RefTable": "ItemPrepTypesTbl",
+          "RefColumn": "ItemPrepID"
+        },
+        {
+          "Column": "PackagingID",
+          "RefTable": "ItemPackagingTbl",
+          "RefColumn": "ItemPackagingId"
+        }
+      ],
+      "NotNullColumns": [
+        "OrderLineID",
+        "OrderID"
+      ],
+      "ColumnTypes": {}
+    },
+    {
+      "Table": "RecurringOrdersTbl",
+      "PrimaryKey": [
+        "RecurringOrderID"
+      ],
+      "IdentityColumns": [
+        "RecurringOrderID"
+      ],
+      "ForeignKeys": [],
+      "NotNullColumns": [
+        "RecurringOrderID"
+      ],
+      "ColumnTypes": {}
+    },
+    {
+      "Table": "RecurringOrderItemsTbl",
+      "PrimaryKey": [
+        "RecurringOrderItemID"
+      ],
+      "IdentityColumns": [
+        "RecurringOrderItemID"
+      ],
+      "ForeignKeys": [
+        {
+          "Column": "RecurringOrderID",
+          "RefTable": "Header",
+          "RefColumn": "HeaderId"
+        },
+        {
+          "Column": "RecurringTypeID",
+          "RefTable": "RecurranceTypesTbl",
+          "RefColumn": "RecurringTypeID"
+        },
+        {
+          "Column": "ItemRequiredID",
+          "RefTable": "ItemsTbl",
+          "RefColumn": "ItemID"
+        },
+        {
+          "Column": "ItemPackagingID",
+          "RefTable": "ItemPackagingTbl",
+          "RefColumn": "ItemPackagingId"
+        }
+      ],
+      "NotNullColumns": [
+        "RecurringOrderItemID",
+        "RecurringOrderID"
+      ],
+      "ColumnTypes": {}
+    }
+  ]
+}

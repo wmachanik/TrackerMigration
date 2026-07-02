@@ -1,0 +1,3 @@
+-- TODO: Verification script for NextPrepDateByAreasTbl
+SELECT COUNT(*) AS MigrationCount FROM [NextPrepDateByAreasTbl];
+

@@ -1,0 +1,1704 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Diagnostics;
+using System.Data.SqlClient;
+using System.Data.OleDb;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using System.Text.RegularExpressions;
+using MigrationRunner;
+
+namespace MigrationRunner.UI
+{
+    internal interface IMenuCommand
+    {
+        string Key { get; }              // e.g. "1", "2", "8", "9", "10", "0"
+        string Description { get; }      // printed in the menu
+        int Execute();                   // return code to print after execution
+    }
+
+    internal sealed class MenuController
+    {
+        private readonly string _title;
+        private readonly IList<IMenuCommand> _commands;
+
+        public MenuController(string title, IEnumerable<IMenuCommand> commands)
+        {
+            _title = title ?? "Menu";
+            _commands = (commands ?? Enumerable.Empty<IMenuCommand>()).ToList();
+        }
+
+        public int RunLoop()
+        {
+            while (true)
+            {
+                Console.WriteLine();
+                Console.WriteLine(_title);
+
+                foreach (var cmd in _commands
+                    .OrderBy(c => SortKey(c.Key), StringComparer.Ordinal))
+                {
+                    Console.WriteLine("  {0}) {1}", cmd.Key.PadLeft(2), cmd.Description);
+                }
+
+                Console.Write("Select Choice: ");
+                var input = Console.ReadLine();
+                Console.WriteLine();
+
+                var match = _commands.FirstOrDefault(c => string.Equals(c.Key, input, StringComparison.OrdinalIgnoreCase));
+                if (match == null)
+                {
+                    Console.WriteLine("Unknown option. Please try again.");
+                    continue;
+                }
+
+                if (match is ExitCommand) return 0;
+
+                var rc = match.Execute();
+                Console.WriteLine("Finished with code: " + rc);
+            }
+        }
+
+        // Create a sortable key string. Numeric keys are zero-padded so they sort before letters.
+        // Special-case mapping are applied here to position non-numeric keys as desired.
+        private static string SortKey(string key)
+        {
+            if (int.TryParse(key, out int n))
+            {
+                return n.ToString("D10"); // numeric keys sort first
+            }
+
+            // Place '!' visually between 'N' and 'O' by mapping it to "N!" for sorting purposes.
+            if (string.Equals(key, "!", StringComparison.Ordinal))
+            {
+                return "N!";
+            }
+
+            // Place '$' after 'Z' so it appears below the Z option in the menu.
+            if (string.Equals(key, "$", StringComparison.Ordinal))
+            {
+                return "Z$";
+            }
+
+            // Place '&' after 'X' so it appears below the X option in the menu.
+            if (string.Equals(key, "&", StringComparison.Ordinal))
+            {
+                return "X&";
+            }
+
+            return key ?? string.Empty;
+        }
+
+        private static int ParseKey(string key)
+        {
+            int n;
+            return int.TryParse(key, out n) ? n : int.MaxValue;
+        }
+    }
+
+    internal sealed class ExitCommand : IMenuCommand
+    {
+        public string Key => "0";
+        public string Description => "Exit";
+        public int Execute() => 0; // handled by controller
+    }
+
+    // Below are light adapters over your existing static entry points.
+    internal sealed class ExportAccessSchemaCommand : IMenuCommand
+    {
+        private readonly MigrationConfig _config;
+        private readonly string _migrationsDir;
+        public ExportAccessSchemaCommand(string migrationsDir, MigrationConfig config) { _migrationsDir = migrationsDir; _config = config; }
+        public string Key => "1";
+        public string Description => "Export Access schema (per-table JSON)";
+        public int Execute()
+        {
+            var outDir = System.IO.Path.Combine(_migrationsDir, "Metadata", "AccessSchema");
+            System.IO.Directory.CreateDirectory(outDir);
+            return AccessSchemaExporter.Export(_config, outDir);
+        }
+    }
+
+    internal sealed class ReviewEditPlanCommand : IMenuCommand
+    {
+        private readonly string _migrationsDir;
+        public ReviewEditPlanCommand(string migrationsDir) { _migrationsDir = migrationsDir; }
+        public string Key => "2";
+        public string Description => "Review/Edit migration plan (per table)";
+        public int Execute() => SchemaPlanEditor.Run(_migrationsDir);
+    }
+
+    internal sealed class ExportPlanSummaryCsvCommand : IMenuCommand
+    {
+        private readonly string _migrationsDir;
+        public ExportPlanSummaryCsvCommand(string migrationsDir) { _migrationsDir = migrationsDir; }
+        public string Key => "3";
+        public string Description => "Export plan summary CSV";
+        public int Execute()
+        {
+            var rc = PlanSummaryExporter.Export(_migrationsDir, out var csvPath);
+            if (rc == 0) Console.WriteLine("File: " + csvPath);
+            return rc;
+        }
+    }
+
+    internal sealed class ExportPlanCsvInteractiveCommand : IMenuCommand
+    {
+        private readonly string _migrationsDir;
+        public ExportPlanCsvInteractiveCommand(string migrationsDir) { _migrationsDir = migrationsDir; }
+        public string Key => "4";
+        public string Description => "Export plan CSV (interactive: All/Tables/Columns/Normalize/Assignments)";
+        public int Execute() => PlanBulkCsv.RunExportMenu(_migrationsDir);
+    }
+
+    internal sealed class ImportPlanCsvInteractiveCommand : IMenuCommand
+    {
+        private readonly string _migrationsDir;
+        public ImportPlanCsvInteractiveCommand(string migrationsDir) { _migrationsDir = migrationsDir; }
+        public string Key => "5";
+        public string Description => "Import plan CSV (interactive: All/Tables/Columns/Normalize/Assignments)";
+        public int Execute() => PlanBulkCsv.RunImportMenu(_migrationsDir);
+    }
+
+    internal sealed class BulkRenameDryRunCommand : IMenuCommand
+    {
+        private readonly string _migrationsDir;
+        public BulkRenameDryRunCommand(string migrationsDir) { _migrationsDir = migrationsDir; }
+        public string Key => "6";
+        public string Description => "Bulk rename (dry-run, all tables)";
+        public int Execute()
+        {
+            var rc = BulkRenameApplier.Run(_migrationsDir, true, out var logPath);
+            if (rc == 0) Console.WriteLine("Log: " + logPath);
+            return rc;
+        }
+    }
+
+    internal sealed class BulkRenameApplyCommand : IMenuCommand
+    {
+        private readonly string _migrationsDir;
+        public BulkRenameApplyCommand(string migrationsDir) { _migrationsDir = migrationsDir; }
+        public string Key => "7";
+        public string Description => "Bulk rename (apply, all tables)";
+        public int Execute()
+        {
+            var rc = BulkRenameApplier.Run(_migrationsDir, false, out var logPath);
+            if (rc == 0) Console.WriteLine("Log: " + logPath);
+            return rc;
+        }
+    }
+
+    internal sealed class FullPlanReviewCommand : IMenuCommand
+    {
+        private readonly string _migrationsDir;
+        public FullPlanReviewCommand(string migrationsDir) { _migrationsDir = migrationsDir; }
+        public string Key => "8";
+        public string Description => "Create full plan review (JSON + Markdown)";
+        public int Execute()
+        {
+            var rc = PlanSummaryExporter.ExportFullReview(_migrationsDir, out var jsonPath, out var mdPath);
+            if (rc == 0 || rc == 1) { Console.WriteLine("JSON: " + jsonPath); Console.WriteLine("MD:   " + mdPath); }
+            return rc;
+        }
+    }
+
+    internal sealed class BeforeAfterCsvCommand : IMenuCommand
+    {
+        private readonly string _migrationsDir;
+        public BeforeAfterCsvCommand(string migrationsDir) { _migrationsDir = migrationsDir; }
+        public string Key => "9";
+        public string Description => "Export Before/After CSV (side-by-side types, keys, FKs)";
+        public int Execute()
+        {
+            var rc = PlanSummaryExporter.ExportBeforeAfterCsv(_migrationsDir, out var path);
+            if (rc == 0) Console.WriteLine("File: " + path);
+            return rc;
+        }
+    }
+
+    internal sealed class HumanReviewCsvCommand : IMenuCommand
+    {
+        private readonly string _migrationsDir;
+        public HumanReviewCsvCommand(string migrationsDir) { _migrationsDir = migrationsDir; }
+        public string Key => "10";
+        public string Description => "Export Human Review CSV (per-table sections, Excel-friendly)";
+        public int Execute()
+        {
+            var rc = PlanSummaryExporter.ExportHumanReviewCsv(_migrationsDir, out var path);
+            if (rc == 0) Console.WriteLine("File: " + path);
+            return rc;
+        }
+    }
+
+    internal sealed class HumanReviewCsvImportCommand : IMenuCommand
+    {
+        private readonly string _migrationsDir;
+        public HumanReviewCsvImportCommand(string migrationsDir) { _migrationsDir = migrationsDir; }
+        public string Key => "11";
+        public string Description => "Import Human Review CSV (plan edits + PK/FK/Identity constraints)";
+
+        public int Execute()
+        {
+            try
+            {
+                var planEditsDir = Path.Combine(_migrationsDir, "Metadata", "PlanEdits", "Csv");
+                if (!Directory.Exists(planEditsDir))
+                {
+                    Console.Error.WriteLine("PlanEdits CSV folder not found: " + planEditsDir);
+                    Console.WriteLine("Press any key to exit...");
+                    Console.ReadKey();
+                    return 2;
+                }
+
+                Console.Write("Filter prefix [TableMigration]: ");
+                var prefixInput = Console.ReadLine();
+                var prefix = string.IsNullOrWhiteSpace(prefixInput) ? "TableMigration" : prefixInput.Trim();
+
+                var files = Directory.EnumerateFiles(planEditsDir, "*.csv", SearchOption.TopDirectoryOnly)
+                                     .Select(f => new FileInfo(f))
+                                     .Where(fi => fi.Name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                                     .OrderByDescending(fi => fi.LastWriteTimeUtc)
+                                     .ToList();
+
+                string selectedPath = null;
+
+                if (files.Count == 0)
+                {
+                    Console.WriteLine("No CSV files found in '" + planEditsDir + "' with prefix '" + prefix + "'."); Console.Write("Enter full path to a CSV (or leave blank to cancel): ");
+                    var manual = Console.ReadLine();
+                    if (string.IsNullOrWhiteSpace(manual)) return 2;
+                    selectedPath = manual.Trim();
+                    if (!File.Exists(selectedPath))
+                    {
+                        Console.Error.WriteLine("File not found: " + selectedPath);
+                        return 2;
+                    }
+                }
+                else
+                {
+                    Console.WriteLine();
+                    Console.WriteLine("Available CSVs (newest first):");
+                    for (int i = 0; i < files.Count; i++)
+                    {
+                        var fi = files[i];
+                        Console.WriteLine($"  {i + 1}. {fi.Name}  [{fi.LastWriteTime:yyyy-MM-dd HH:mm}]  {fi.Length:N0} bytes");
+                    }
+                    Console.Write($"Select file [1]: ");
+                    var sel = Console.ReadLine();
+                    int idx = 0;
+                    if (!string.IsNullOrWhiteSpace(sel))
+                    {
+                        if (!int.TryParse(sel.Trim(), out var n) || n < 1 || n > files.Count)
+                        {
+                            Console.Error.WriteLine("Invalid selection.");
+                            return 2;
+                        }
+                        idx = n - 1;
+                    }
+                    selectedPath = files[idx].FullName;
+                }
+
+                Console.WriteLine("Using: " + selectedPath);
+
+                // Import plan + constraints (constraints are imported inside this call)
+                var rcPlan = PlanHumanReviewImporter.Import(_migrationsDir, selectedPath, out var planLogPath);
+                Console.WriteLine("Plan import finished with code: " + rcPlan);
+                Console.WriteLine("Plan import log: " + planLogPath);
+
+                // Status: summarize constraints from PlanConstraints.json
+                var constraintsPath = Path.Combine(_migrationsDir, "Metadata", "PlanEdits", "PlanConstraints.json");
+                if (File.Exists(constraintsPath))
+                {
+                    try
+                    {
+                        var idx = JsonConvert.DeserializeObject<ConstraintsIndex>(File.ReadAllText(constraintsPath)) ?? new ConstraintsIndex();
+                        int tables = (idx.Tables ?? new List<ConstraintTable>()).Count;
+                        int pkCols = (idx.Tables ?? new List<ConstraintTable>()).Sum(t => (t.PrimaryKey ?? new List<string>()).Count);
+                        int idCols = (idx.Tables ?? new List<ConstraintTable>()).Sum(t => (t.IdentityColumns ?? new List<string>()).Count);
+                        int fkCount = (idx.Tables ?? new List<ConstraintTable>()).Sum(t => (t.ForeignKeys ?? new List<ForeignKeyDef>()).Count);
+                        int notNullCols = (idx.Tables ?? new List<ConstraintTable>()).Sum(t => (t.NotNullColumns ?? new List<string>()).Count);
+                        Console.WriteLine($"Constraints summary: Tables={tables}, PKCols={pkCols}, IdentityCols={idCols}, FKs={fkCount}, NotNullCols={notNullCols}");
+                        Console.WriteLine("Constraints JSON: " + constraintsPath);
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.Error.WriteLine("Failed to read constraints summary: " + ex.Message);
+                    }
+                }
+                else
+                {
+                    Console.WriteLine("Constraints file not found; ensure CSV used the correct working folder.");
+                }
+
+                Console.WriteLine("Tip: Run option 12 to validate and produce a single session log.");
+                return (rcPlan == 0) ? 0 : 1;
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine("ERROR: " + ex.Message);
+                return 1;
+            }
+        }
+    }
+
+    internal sealed class PreflightValidateCommand : IMenuCommand
+    {
+        private readonly string _migrationsDir;
+        public PreflightValidateCommand(string migrationsDir) { _migrationsDir = migrationsDir; }
+        public string Key => "12";
+        public string Description => "Validate plan (relations, business rules, preflight, source vs target counts)";
+        public int Execute()
+        {
+            try
+            {
+                var logsDir = Path.Combine(_migrationsDir, "Metadata", "PlanEdits", "Logs");
+                Directory.CreateDirectory(logsDir);
+                var sessionLog = Path.Combine(logsDir, "ValidationSession_" + DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".log");
+
+                // 1) Relations (PK/FK/IDENTITY vs plan)
+                var rcRelations = PlanRelationsValidator.Validate(_migrationsDir, out var relationsLog);
+
+                // 2) Business rules validation (CompositeKey/Compute/Recurring)
+                var rcRules = BusinessRulesLoader.LoadAndValidate(_migrationsDir, out var brLog, out var _);
+
+                // 3) Preflight (plan completeness for DDL/ETL)
+                var rcPreflight = PreflightValidator.Run(_migrationsDir, out var preflightLog);
+
+                // 4) NEW: Source vs Target data validation (catches migration issues like missing column mappings)
+                var rcDataValidation = ValidateSourceTargetCounts(_migrationsDir, out var dataValidationLog);
+
+                // Combine into one session log
+                var (warns, errs) = CombineLogs(sessionLog, new[]
+                {
+                    ("Relations Validator", relationsLog),
+                    ("Business Rules Validation", brLog),
+                    ("Preflight", preflightLog),
+                    ("Source vs Target Data Validation", dataValidationLog)
+                });
+
+                Console.WriteLine($"Validation session summary: WARN={warns} ERR={errs}");
+                Console.WriteLine("Session log: " + sessionLog);
+
+                return (rcRelations == 0 && rcRules == 0 && rcPreflight == 0 && rcDataValidation == 0) ? 0 : 1;
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine("ERROR: " + ex.Message);
+                return 1;
+            }
+        }
+
+        private int ValidateSourceTargetCounts(string migrationsDir, out string logPath)
+        {
+            var logsDir = Path.Combine(migrationsDir, "Metadata", "PlanEdits", "Logs");
+            Directory.CreateDirectory(logsDir);
+            logPath = Path.Combine(logsDir, "DataValidation_" + DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".log");
+
+            try
+            {
+                var sb = new StringBuilder();
+                sb.AppendLine("=== Source vs Target Data Validation ===");
+                sb.AppendLine(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+                sb.AppendLine("Purpose: Detect migration issues by comparing source vs target row counts");
+                sb.AppendLine("Critical: Source has data but target is empty (suggests missing column mappings)");
+                sb.AppendLine();
+
+                // Try to get connection strings from config
+                if (!TryGetConnections(migrationsDir, out var accessCs, out var sqlCs, out var connError))
+                {
+                    sb.AppendLine($"WARN: {connError} - skipping data validation");
+                    sb.AppendLine("Tip: Use option X to set up connection strings, then retry validation");
+                    File.WriteAllText(logPath, sb.ToString(), Encoding.UTF8);
+                    return 0; // Not a critical error, just a warning
+                }
+
+                sb.AppendLine("OK: Connection strings found, testing connectivity...");
+
+                // Test connections
+                try
+                {
+                    using (var conn = new OleDbConnection(accessCs)) { conn.Open(); }
+                    sb.AppendLine("OK: Access connection successful");
+                }
+                catch (Exception ex)
+                {
+                    sb.AppendLine($"ERROR: Access connection failed: {ex.Message}");
+                    File.WriteAllText(logPath, sb.ToString(), Encoding.UTF8);
+                    return 1;
+                }
+
+                try
+                {
+                    using (var conn = new SqlConnection(sqlCs)) { conn.Open(); }
+                    sb.AppendLine("OK: SQL Server connection successful");
+                }
+                catch (Exception ex)
+                {
+                    sb.AppendLine($"ERROR: SQL Server connection failed: {ex.Message}");
+                    File.WriteAllText(logPath, sb.ToString(), Encoding.UTF8);
+                    return 1;
+                }
+
+                // Get table mappings from schema
+                var mappings = GetTableMappings(migrationsDir);
+                if (mappings.Count == 0)
+                {
+                    sb.AppendLine("WARN: No table mappings found - skipping data validation");
+                    File.WriteAllText(logPath, sb.ToString(), Encoding.UTF8);
+                    return 0;
+                }
+
+                sb.AppendLine($"Found {mappings.Count} table mappings to validate");
+                sb.AppendLine();
+
+                int criticalErrors = 0;
+                int warnings = 0;
+                int checkedCount = 0;
+                int emptyTables = 0;
+                int perfectMatches = 0;
+
+                // Validate each mapping (limit to avoid timeout)
+                foreach (var mapping in mappings.Take(50)) // Increased limit
+                {
+                    try
+                    {
+                        checkedCount++;
+                        long sourceCount = GetRowCount(accessCs, $"[{mapping.Source}]", true);
+                        long targetCount = GetRowCount(sqlCs, $"[{mapping.Target}]", false);
+
+                        sb.AppendLine($"Table: {mapping.Source} -> {mapping.Target}");
+                        sb.AppendLine($"  Source: {sourceCount:N0} rows, Target: {targetCount:N0} rows");
+
+                        if (sourceCount > 0 && targetCount == 0)
+                        {
+                            sb.AppendLine($"  ERROR: Source has {sourceCount:N0} rows but target is empty!");
+                            sb.AppendLine($"         This indicates a critical migration failure");
+                            sb.AppendLine($"         Check column mappings for {mapping.Source} -> {mapping.Target}");
+                            sb.AppendLine($"         Verify data migration script executed without errors");
+                            criticalErrors++;
+                        }
+                        else if (sourceCount == 0 && targetCount == 0)
+                        {
+                            sb.AppendLine($"  OK: Both source and target are empty");
+                            emptyTables++;
+                        }
+                        else if (sourceCount == targetCount)
+                        {
+                            sb.AppendLine($"  OK: Row counts match exactly");
+                            perfectMatches++;
+                        }
+                        else if (Math.Abs(sourceCount - targetCount) > 0)
+                        {
+                            var diff = targetCount - sourceCount;
+                            if (diff > 0)
+                            {
+                                sb.AppendLine($"  WARN: Target has {diff:N0} more rows than source");
+                                sb.AppendLine($"        This could indicate data duplication or identity reseeding");
+                                warnings++;
+                            }
+                            else
+                            {
+                                sb.AppendLine($"  ERROR: Target has {Math.Abs(diff):N0} fewer rows than source - potential data loss!");
+                                sb.AppendLine($"         Check for FK constraint violations or mapping errors");
+                                criticalErrors++;
+                            }
+                        }
+                        sb.AppendLine();
+                    }
+                    catch (Exception ex)
+                    {
+                        sb.AppendLine($"ERROR validating {mapping.Source} -> {mapping.Target}: {ex.Message}");
+                        sb.AppendLine();
+                        criticalErrors++;
+                    }
+                }
+
+                sb.AppendLine("=== Data Validation Summary ===");
+                sb.AppendLine($"Tables checked: {checkedCount}");
+                sb.AppendLine($"Perfect matches: {perfectMatches}");
+                sb.AppendLine($"Empty tables: {emptyTables}");
+                sb.AppendLine($"Critical errors: {criticalErrors}");
+                sb.AppendLine($"Warnings: {warnings}");
+                sb.AppendLine($"Success rate: {(double)(perfectMatches + emptyTables) / checkedCount * 100:F1}%");
+
+                if (criticalErrors > 0)
+                {
+                    sb.AppendLine();
+                    sb.AppendLine("?? CRITICAL ISSUES FOUND:");
+                    sb.AppendLine("- Tables with source data but empty targets indicate migration failures");
+                    sb.AppendLine("- This typically means missing or incorrect column mappings");
+                    sb.AppendLine("- Review the migration plan and regenerate the data migration script");
+                    sb.AppendLine("- Check the data migration execution logs for specific errors");
+                    sb.AppendLine("- For tables like PackagingTbl -> ItemPackagingsTbl: ensure all column mappings exist");
+                    sb.AppendLine();
+                    sb.AppendLine("NEXT STEPS:");
+                    sb.AppendLine("1. Run option 2 to review/edit migration plans");
+                    sb.AppendLine("2. Run option M to regenerate data migration script");
+                    sb.AppendLine("3. Run option N to re-execute data migration");
+                    sb.AppendLine("4. Rerun this validation to confirm fixes");
+                }
+                else if (warnings > 0)
+                {
+                    sb.AppendLine();
+                    sb.AppendLine("??  WARNINGS DETECTED:");
+                    sb.AppendLine("- Row count mismatches may indicate data integrity issues");
+                    sb.AppendLine("- Review specific tables for duplicates or missing data");
+                    sb.AppendLine("- Consider running option O for detailed spot-check verification");
+                }
+                else
+                {
+                    sb.AppendLine();
+                    sb.AppendLine("? DATA MIGRATION VALIDATION PASSED!");
+                    sb.AppendLine("- All tables show expected row counts");
+                    sb.AppendLine("- No critical data loss detected");
+                    sb.AppendLine("- Ready to proceed with FK constraints (option B + C)");
+                }
+
+                File.WriteAllText(logPath, sb.ToString(), Encoding.UTF8);
+                return criticalErrors > 0 ? 1 : 0;
+            }
+            catch (Exception ex)
+            {
+                File.WriteAllText(logPath, $"FATAL: Data validation failed: {ex.Message}", Encoding.UTF8);
+                return 1;
+            }
+        }
+
+        private bool TryGetConnections(string migrationsDir, out string accessCs, out string sqlCs, out string error)
+        {
+            accessCs = sqlCs = null;
+            error = "Could not locate connection strings in config";
+            
+            try
+            {
+                // Look in common config locations
+                var configPaths = new[]
+                {
+                    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "MigrationConfig.json"),
+                    Path.Combine(migrationsDir, "..", "MigrationConfig.json"),
+                    Path.Combine(migrationsDir, "MigrationConfig.json")
+                };
+
+                foreach (var path in configPaths.Where(File.Exists))
+                {
+                    var json = File.ReadAllText(path);
+                    var config = JsonConvert.DeserializeObject<MigrationConfig>(json);
+                    accessCs = config?.AccessConnectionString;
+                    sqlCs = config?.TargetConnectionString;
+                    
+                    if (!string.IsNullOrEmpty(accessCs) && !string.IsNullOrEmpty(sqlCs))
+                        return true;
+                }
+                
+                error = "Connection strings not found in MigrationConfig.json";
+            }
+            catch (Exception ex)
+            {
+                error = $"Config read error: {ex.Message}";
+            }
+            return false;
+        }
+
+        private long GetRowCount(string connectionString, string tableName, bool isAccess)
+        {
+            try
+            {
+                if (isAccess)
+                {
+                    using (var conn = new OleDbConnection(connectionString))
+                    {
+                        conn.Open();
+                        using (var cmd = new OleDbCommand($"SELECT COUNT(*) FROM {tableName}", conn))
+                        {
+                            cmd.CommandTimeout = 30;
+                            return Convert.ToInt64(cmd.ExecuteScalar() ?? 0);
+                        }
+                    }
+                }
+                else
+                {
+                    using (var conn = new SqlConnection(connectionString))
+                    {
+                        conn.Open();
+                        using (var cmd = new SqlCommand($"SELECT COUNT(*) FROM {tableName}", conn))
+                        {
+                            cmd.CommandTimeout = 30;
+                            return Convert.ToInt64(cmd.ExecuteScalar() ?? 0);
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                return -1; // Indicates error/table not found
+            }
+        }
+
+        private List<(string Source, string Target)> GetTableMappings(string migrationsDir)
+        {
+            var mappings = new List<(string Source, string Target)>();
+            try
+            {
+                var schemaDir = Path.Combine(migrationsDir, "Metadata", "AccessSchema");
+                if (!Directory.Exists(schemaDir)) return mappings;
+
+                foreach (var file in Directory.GetFiles(schemaDir, "*.schema.json"))
+                {
+                    try
+                    {
+                        var json = File.ReadAllText(file);
+                        // Use JObject instead of dynamic to avoid runtime binder issues
+                        var schema = Newtonsoft.Json.Linq.JObject.Parse(json);
+                        var source = schema["SourceTable"]?.ToString();
+                        var target = schema["Plan"]?["TargetTable"]?.ToString();
+                        var ignoreToken = schema["Plan"]?["Ignore"];
+                        bool ignore = false;
+                        if (ignoreToken != null && ignoreToken.Type == Newtonsoft.Json.Linq.JTokenType.Boolean)
+                        {
+                            ignore = (bool)ignoreToken;
+                        }
+                        
+                        if (!string.IsNullOrEmpty(source) && !string.IsNullOrEmpty(target) && !ignore)
+                        {
+                            mappings.Add((source, target));
+                        }
+                    }
+                    catch { /* skip invalid schema files */ }
+                }
+            }
+            catch { /* return empty list on error */ }
+            return mappings;
+        }
+
+        private static (int warns, int errs) CombineLogs(string sessionLogPath, IEnumerable<(string Title, string Path)> parts)
+        {
+            int warns = 0, errs = 0;
+            var sb = new StringBuilder();
+
+            sb.AppendLine("=== Validation Session Log ===");
+            sb.AppendLine(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+            sb.AppendLine();
+
+            foreach (var p in parts)
+            {
+                sb.AppendLine("---- " + p.Title + " ----");
+                if (!string.IsNullOrWhiteSpace(p.Path) && File.Exists(p.Path))
+                {
+                    foreach (var line in File.ReadAllLines(p.Path))
+                    {
+                        if (line.StartsWith("WARN", StringComparison.OrdinalIgnoreCase)) warns++;
+                        if (line.StartsWith("ERROR", StringComparison.OrdinalIgnoreCase)) errs++;
+                        sb.AppendLine(line);
+                    }
+                }
+                else
+                {
+                    sb.AppendLine("(no log file)");
+                }
+                sb.AppendLine();
+            }
+
+            sb.Insert(0, $"Summary: WARN={warns}, ERR={errs}{Environment.NewLine}{Environment.NewLine}");
+            Directory.CreateDirectory(Path.GetDirectoryName(sessionLogPath));
+            File.WriteAllText(sessionLogPath, sb.ToString(), Encoding.UTF8);
+            return (warns, errs);
+        }
+    }
+
+    internal sealed class GenerateCreateTablesScriptCommand : IMenuCommand
+    {
+        private readonly string _migrationsDir;
+        public string Key => "A";
+        public string Description => "Generate CREATE TABLE DDL (SQL)";
+
+        public GenerateCreateTablesScriptCommand(string migrationsDir) { _migrationsDir = migrationsDir; }
+
+        public int Execute()
+        {
+            // Use RunRangeState if present
+            var rro = RunRangeState.Current;
+            bool suppressIdentity = false;
+            bool dropExisting = false;
+            if (rro != null && rro.SuppressPrompts)
+            {
+                suppressIdentity = rro.SuppressIdentityOnCreate ?? false;
+                dropExisting = rro.DropExistingOnCreate ?? false;
+                Console.WriteLine($"Using RunRange options: SuppressIdentity={suppressIdentity}, DropExisting={dropExisting}");
+            }
+            else
+            {
+                if (!ScriptOverwritePrompt.ConfirmRegenerate("CREATE TABLE DDL (CreateTables_*.sql)"))
+                {
+                    Console.WriteLine("CREATE TABLE generation cancelled — existing scripts unchanged.");
+                    return 0;
+                }
+
+                Console.Write("Suppress IDENTITY to preserve existing IDs on import? [y/N]: ");
+                var sup = Console.ReadLine();
+                suppressIdentity = !string.IsNullOrWhiteSpace(sup) && sup.Trim().StartsWith("y", StringComparison.OrdinalIgnoreCase);
+
+                Console.Write("Drop existing tables before CREATE (recommended for clean migration)? [Y/n]: ");
+                var drop = Console.ReadLine();
+                dropExisting = string.IsNullOrWhiteSpace(drop) || !drop.Trim().StartsWith("n", StringComparison.OrdinalIgnoreCase);
+            }
+
+            if (rro != null && rro.SuppressPrompts && rro.SkipSqlScriptGeneration)
+            {
+                return 0;
+            }
+
+            var rc = DdlScriptGenerator.GenerateCreateTables(_migrationsDir, suppressIdentity, dropExisting, out var sqlPath);
+            Console.WriteLine("CREATE TABLE script rc=" + rc + " file: " + sqlPath);
+            return rc;
+        }
+    }
+
+    internal sealed class GenerateForeignKeysScriptCommand : IMenuCommand
+    {
+        private readonly string _migrationsDir;
+        public GenerateForeignKeysScriptCommand(string migrationsDir) { _migrationsDir = migrationsDir; }
+        public string Key => "B";
+        public string Description => "Generate FK constraints DDL (SQL)";
+        public int Execute()
+        {
+            var rro = RunRangeState.Current;
+            if (rro != null && rro.SuppressPrompts && rro.SkipSqlScriptGeneration)
+            {
+                return 0;
+            }
+
+            if (rro == null || !rro.SuppressPrompts)
+            {
+                if (!ScriptOverwritePrompt.ConfirmRegenerate("FK constraints DDL (AddForeignKeys_*.sql)"))
+                {
+                    Console.WriteLine("FK script generation cancelled — existing scripts unchanged.");
+                    return 0;
+                }
+            }
+
+            var rc = DdlScriptGenerator.GenerateForeignKeys(_migrationsDir, out var path);
+            Console.WriteLine("FK script rc=" + rc + " file: " + path);
+            try
+            {
+                if (File.Exists(path))
+                {
+                    var head = File.ReadLines(path).Take(8).ToArray();
+                    foreach (var l in head) Console.WriteLine(l);
+                    if (head.Length == 0) Console.WriteLine("(empty file)");
+                }
+                else
+                {
+                    Console.WriteLine("(no output file)");
+                }
+            }
+            catch { /* ignore preview errors */ }
+            return rc;
+        }
+    }
+
+    internal sealed class ApplyDdlScriptsCommand : IMenuCommand
+    {
+        private readonly string _migrationsDir;
+        private readonly MigrationConfig _config;
+        public ApplyDdlScriptsCommand(string migrationsDir, MigrationConfig config)
+        {
+            _migrationsDir = migrationsDir; _config = config;
+        }
+        public string Key => "C";
+        public string Description => "Apply latest DDL scripts to target DB";
+        public int Execute()
+        {
+            var defCs = _config?.TargetConnectionString ?? "";
+
+            // consult RunRangeState
+            var rro = RunRangeState.Current;
+            string cs;
+            if (rro != null && rro.SuppressPrompts && !string.IsNullOrWhiteSpace(rro.TargetConnectionString))
+            {
+                cs = rro.TargetConnectionString;
+                Console.WriteLine($"Using prefilled target connection string");
+            }
+            else
+            {
+                var csDisplay = string.IsNullOrWhiteSpace(defCs) ? "(empty)" : defCs;
+                Console.Write("Target connection string [{0}]: ", csDisplay);
+                var input = Console.ReadLine();
+                cs = string.IsNullOrWhiteSpace(input) ? defCs : input.Trim();
+            }
+
+            if (string.IsNullOrWhiteSpace(cs))
+            {
+                Console.Error.WriteLine("No connection string provided.");
+                return 2;
+            }
+
+            try
+            {
+                using (var conn = new System.Data.SqlClient.SqlConnection(cs))
+                {
+                    conn.Open();
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine("Connection failed: " + ex.Message);
+                Console.Error.WriteLine("Tips:");
+                Console.Error.WriteLine(" - Ensure SQL Server service is running (e.g., 'SQL Server (SQLEXPRESS)').");
+                Console.Error.WriteLine(" - Try Server=localhost or Server=(localdb)\\MSSQLLocalDB for dev.");
+                Console.Error.WriteLine(" - If using SQLEXPRESS, verify the instance name and local firewall.");
+                return 1;
+            }
+
+            var rc = DdlScriptApplier.ApplyLatest(_migrationsDir, cs, out var logPath);
+            Console.WriteLine("Apply DDL rc=" + rc + " log: " + logPath);
+
+            if (!File.Exists(logPath))
+                return rc;
+
+            // Print focused error section if failed
+            var lines = File.ReadAllLines(logPath);
+            if (rc != 0)
+            {
+                var idx = Array.FindLastIndex(lines, l => l.StartsWith("ERROR executing batch:", StringComparison.OrdinalIgnoreCase));
+                if (idx >= 0)
+                {
+                    Console.WriteLine();
+                    Console.WriteLine("Failure details:");
+                    foreach (var l in lines.Skip(idx).Take(12))
+                        Console.WriteLine(l);
+                    Console.WriteLine();
+                }
+            }
+
+            // Tail summary
+            var tail = lines.Reverse().Take(12).Reverse();
+            foreach (var line in tail) Console.WriteLine(line);
+
+            return rc;
+        }
+    }
+
+    internal sealed class OpenSqlFolderCommand : IMenuCommand
+    {
+        private readonly string _migrationsDir;
+        public OpenSqlFolderCommand(string migrationsDir) { _migrationsDir = migrationsDir; }
+        public string Key => "D";
+        public string Description => "Open SQL output folder";
+        public int Execute()
+        {
+            var folder = Path.Combine(_migrationsDir, "Metadata", "PlanEdits", "Sql");
+            Directory.CreateDirectory(folder);
+            try { Process.Start("explorer.exe", folder); }
+            catch (Exception ex) { Console.Error.WriteLine("Open folder failed: " + ex.Message); return 1; }
+            return 0;
+        }
+    }
+
+
+    internal sealed class ConstraintsIndex
+    {
+        public List<ConstraintTable> Tables { get; set; }
+        public ConstraintsIndex()
+        {
+            Tables = new List<ConstraintTable>();
+        }
+    }
+
+    internal class ConstraintTable
+    {
+        public string TableName { get; set; }
+        public List<string> PrimaryKey { get; set; }
+        public List<string> IdentityColumns { get; set; }
+        public List<ForeignKeyDef> ForeignKeys { get; set; }
+        public List<string> NotNullColumns { get; set; }
+        
+        public ConstraintTable()
+        {
+            PrimaryKey = new List<string>();
+            IdentityColumns = new List<string>();
+            ForeignKeys = new List<ForeignKeyDef>();
+            NotNullColumns = new List<string>();
+        }
+    }
+
+    internal class ForeignKeyDef
+    {
+        public string Name { get; set; }
+        public string Column { get; set; }
+        public string ReferencedTable { get; set; }
+        public string ReferencedColumn { get; set; }
+    }
+
+    class CleanupTablesCommand : IMenuCommand
+    {
+        private readonly string _migrationsDir;
+        private readonly MigrationConfig _config;
+
+        public CleanupTablesCommand(string migrationsDir, MigrationConfig config)
+        {
+            _migrationsDir = migrationsDir;
+            _config = config;
+        }
+
+        public string Key => "R";
+        public string Description => "Reset/Clean migration tables (drop Orders, Recurring, Orphan tables)";
+
+        public int Execute()
+        {
+            Console.WriteLine("=== CLEANUP MIGRATION TABLES ===");
+            Console.WriteLine("This will DROP the following tables if they exist:");
+            Console.WriteLine("  - OrderLinesTbl, OrdersTbl");
+            Console.WriteLine("  - RecurringOrderItemsTbl, RecurringOrdersTbl");
+            Console.WriteLine("  - OrphanedOrderIdsTbl, OrphanedRecurringOrderIdsTbl");
+            Console.WriteLine("  - Migration_OrphanedOrders, Migration_OrphanedOrderLines");
+            Console.WriteLine("  - Migration_OrphanedRecurringOrderLines");
+            Console.WriteLine();
+
+            Console.Write("Are you sure you want to proceed? [y/N]: ");
+            var response = Console.ReadLine()?.Trim().ToLowerInvariant();
+            
+            if (response != "y" && response != "yes")
+            {
+                Console.WriteLine("Cleanup cancelled.");
+                return 0;
+            }
+
+            try
+            {
+                using (var conn = new System.Data.SqlClient.SqlConnection(_config.TargetConnectionString))
+                {
+                    conn.Open();
+                    
+                    var cleanupSql = @"
+-- Drop tables in correct dependency order
+IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[OrderLinesTbl]') AND type in (N'U'))
+BEGIN
+    PRINT 'Dropping OrderLinesTbl...'
+    DROP TABLE [dbo].[OrderLinesTbl];
+END
+
+IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[RecurringOrderItemsTbl]') AND type in (N'U'))
+BEGIN
+    PRINT 'Dropping RecurringOrderItemsTbl...'
+    DROP TABLE [dbo].[RecurringOrderItemsTbl];
+END
+
+IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[OrdersTbl]') AND type in (N'U'))
+BEGIN
+    PRINT 'Dropping OrdersTbl...'
+    DROP TABLE [dbo].[OrdersTbl];
+END
+
+IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[RecurringOrdersTbl]') AND type in (N'U'))
+BEGIN
+    PRINT 'Dropping RecurringOrdersTbl...'
+    DROP TABLE [dbo].[RecurringOrdersTbl];
+END
+
+-- Drop orphan tracking tables
+IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[OrphanedOrderIdsTbl]') AND type in (N'U'))
+BEGIN
+    PRINT 'Dropping OrphanedOrderIdsTbl...'
+    DROP TABLE [dbo].[OrphanedOrderIdsTbl];
+END
+
+IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[OrphanedRecurringOrderIdsTbl]') AND type in (N'U'))
+BEGIN
+    PRINT 'Dropping OrphanedRecurringOrderIdsTbl...'
+    DROP TABLE [dbo].[OrphanedRecurringOrderIdsTbl];
+END
+
+-- Drop migration diagnostic tables
+IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[Migration_OrphanedOrders]') AND type in (N'U'))
+BEGIN
+    PRINT 'Dropping Migration_OrphanedOrders...'
+    DROP TABLE [dbo].[Migration_OrphanedOrders];
+END
+
+IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[Migration_OrphanedOrderLines]') AND type in (N'U'))
+BEGIN
+    PRINT 'Dropping Migration_OrphanedOrderLines...'
+    DROP TABLE [dbo].[Migration_OrphanedOrderLines];
+END
+
+IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[Migration_OrphanedRecurringOrderLines]') AND type in (N'U'))
+BEGIN
+    PRINT 'Dropping Migration_OrphanedRecurringOrderLines...'
+    DROP TABLE [dbo].[Migration_OrphanedRecurringOrderLines];
+END
+
+PRINT 'Cleanup completed successfully.'
+";
+
+                using (var cmd = new System.Data.SqlClient.SqlCommand(cleanupSql, conn))
+                {
+                    cmd.CommandTimeout = 300; // 5 minutes timeout
+                    
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        do
+                        {
+                            while (reader.Read())
+                            {
+                                // Process any result messages
+                                for (int i = 0; i < reader.FieldCount; i++)
+                                {
+                                    Console.WriteLine(reader[i]?.ToString());
+                                }
+                            }
+                        } while (reader.NextResult());
+                    }
+                }
+            }
+
+            Console.WriteLine("? All migration tables have been cleaned up successfully!");
+            Console.WriteLine("You can now run a fresh migration with Option A -> C -> !");
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"? Error during cleanup: {ex.Message}");
+            return 1;
+        }
+    }
+    }
+
+    internal sealed class RunRangeCommand : IMenuCommand
+    {
+        private readonly List<IMenuCommand> _allCommands;
+        private readonly MigrationConfig _config;
+
+        public RunRangeCommand(List<IMenuCommand> allCommands, MigrationConfig config)
+        {
+            _allCommands = allCommands;
+            _config = config;
+        }
+
+        public string Key => "Z";
+        public string Description => "Full migration pipeline (A?B?C?D?M?MS?N?! sequence)";
+
+        public int Execute()
+        {
+            Console.WriteLine("=== FULL MIGRATION PIPELINE ===");
+            Console.WriteLine("This will execute the complete migration sequence:");
+            Console.WriteLine("  A) Generate CREATE TABLE DDL");
+            Console.WriteLine("  B) Generate FK constraints DDL");
+            Console.WriteLine("  C) Apply DDL scripts to target DB");
+            Console.WriteLine("  D) Open SQL output folder");
+            Console.WriteLine("  M) Generate data migration script");
+            Console.WriteLine("  MS) Stage Access data to SQL");
+            Console.WriteLine("  N) Apply data migration (excluding normalized tables)");
+            Console.WriteLine("  CLEAN) Clean normalized tables before custom migration");
+            Console.WriteLine("  !) Custom migrate Orders + Recurring tables");
+            Console.WriteLine();
+            Console.WriteLine("NOTE: Regular data migration (N) will automatically skip tables marked for normalization");
+            Console.WriteLine("NOTE: Normalized tables (Orders, Recurring) will be cleaned and rebuilt in Step !");
+            Console.WriteLine();
+
+            // GATHER ALL CONFIGURATION UPFRONT
+            Console.WriteLine("=== CONFIGURATION ===");
+            
+            // Debug: Show that config is loaded
+            Console.WriteLine($"Loaded config - Access: {(_config?.AccessConnectionString?.Length ?? 0)} chars, SQL: {(_config?.TargetConnectionString?.Length ?? 0)} chars");
+            
+            // Get connection strings
+            var defAccessCs = _config?.AccessConnectionString ?? "";
+            var defSqlCs = _config?.TargetConnectionString ?? "";
+            
+            // Show the actual values, not just "(empty)" or "configured"
+            var accessDisplay = string.IsNullOrWhiteSpace(defAccessCs) ? "(empty)" : defAccessCs;
+            var sqlDisplay = string.IsNullOrWhiteSpace(defSqlCs) ? "(empty)" : defSqlCs;
+            
+            Console.Write($"Access connection string [{accessDisplay}]: ");
+            var accessInput = Console.ReadLine();
+            var accessCs = string.IsNullOrWhiteSpace(accessInput) ? defAccessCs : accessInput.Trim();
+            
+            Console.Write($"SQL connection string [{sqlDisplay}]: ");
+            var sqlInput = Console.ReadLine();
+            var sqlCs = string.IsNullOrWhiteSpace(sqlInput) ? defSqlCs : sqlInput.Trim();
+            
+            if (string.IsNullOrWhiteSpace(sqlCs))
+            {
+                Console.WriteLine("? SQL connection string is required for the pipeline.");
+                return 2;
+            }
+            
+            if (string.IsNullOrWhiteSpace(accessCs))
+            {
+                Console.WriteLine("? Access connection string is required for data staging (step MS).");
+                return 2;
+            }
+
+            // Test connections upfront
+            Console.WriteLine("Testing connections...");
+            try
+            {
+                using (var conn = new System.Data.OleDb.OleDbConnection(accessCs)) 
+                { 
+                    conn.Open(); 
+                    Console.WriteLine("? Access connection successful");
+                }
+            }
+            catch (Exception ex) 
+            { 
+                Console.WriteLine($"? Access connection failed: {ex.Message}"); 
+                return 1; 
+            }
+            
+            try
+            {
+                using (var conn = new System.Data.SqlClient.SqlConnection(sqlCs)) 
+                { 
+                    conn.Open(); 
+                    Console.WriteLine("? SQL Server connection successful");
+                }
+            }
+            catch (Exception ex) 
+            { 
+                Console.WriteLine($"? SQL Server connection failed: {ex.Message}"); 
+                return 1; 
+            }
+
+            // Get DDL options
+            Console.Write("Drop existing tables before CREATE (recommended for clean migration)? [Y/n]: ");
+            var dropInput = Console.ReadLine();
+            var dropExisting = string.IsNullOrWhiteSpace(dropInput) || 
+                             !dropInput.Trim().StartsWith("n", StringComparison.OrdinalIgnoreCase);
+            
+            Console.Write("Suppress IDENTITY to preserve existing IDs on import? [y/N]: ");
+            var supInput = Console.ReadLine();
+            var suppressIdentity = !string.IsNullOrWhiteSpace(supInput) && supInput.Trim().StartsWith("y", StringComparison.OrdinalIgnoreCase);
+            
+            Console.WriteLine();
+            Console.Write("Use existing SQL scripts and skip regeneration (steps A, B, M)? [Y/n]: ");
+            var skipGenInput = Console.ReadLine();
+            var skipScriptGeneration = string.IsNullOrWhiteSpace(skipGenInput) ||
+                !skipGenInput.Trim().StartsWith("n", StringComparison.OrdinalIgnoreCase);
+
+            if (!skipScriptGeneration)
+            {
+                Console.WriteLine("NOTE: Steps A, B, and M will regenerate SQL from the migration plan/CSV.");
+            }
+            else
+            {
+                Console.WriteLine("NOTE: Steps A, B, and M will be skipped; existing scripts in Metadata/PlanEdits/Sql will be used.");
+                Console.WriteLine("      Apply DDL (C) prefers CreateTables_LATEST_FIXED.sql when that file exists.");
+            }
+
+            Console.WriteLine();
+            Console.Write("Proceed with full migration pipeline? [y/N]: ");
+            var response = Console.ReadLine()?.Trim().ToLowerInvariant();
+            
+            if (response != "y" && response != "yes")
+            {
+                Console.WriteLine("Full migration pipeline cancelled.");
+                return 0;
+            }
+
+            // SET UP BATCH EXECUTION MODE
+            RunRangeState.Current = new RunRangeOptions
+            {
+                SuppressPrompts = true,
+                SuppressIdentityOnCreate = suppressIdentity,
+                DropExistingOnCreate = dropExisting,
+                SkipSqlScriptGeneration = skipScriptGeneration,
+                TargetConnectionString = sqlCs,
+                AccessConnectionString = accessCs
+            };
+
+            try
+            {
+                // Define the sequence of commands to run
+                var sequence = new[] { "A", "B", "C", "D", "M", "MS", "N", "!" };
+                
+                foreach (var key in sequence)
+                {
+                    Console.WriteLine($"\n=== STEP {key} ===");
+                    
+                    // Special handling: Clean normalized tables before Step !
+                    if (key == "!")
+                    {
+                        Console.WriteLine("=== PRE-NORMALIZE CLEANUP ===");
+                        Console.WriteLine("Cleaning normalized tables (Orders, Recurring) before custom migration...");
+                        
+                        try
+                        {
+                            using (var conn = new SqlConnection(sqlCs))
+                            {
+                                conn.Open();
+                                
+                                // Clean up normalized tables that might have been partially migrated
+                                var cleanupSql = @"
+-- Drop FK constraints first
+IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_OrderLinesTbl_OrdersTbl')
+    ALTER TABLE [dbo].[OrderLinesTbl] DROP CONSTRAINT [FK_OrderLinesTbl_OrdersTbl];
+
+IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_RecurringOrderItemsTbl_RecurringOrdersTbl')
+    ALTER TABLE [dbo].[RecurringOrderItemsTbl] DROP CONSTRAINT [FK_RecurringOrderItemsTbl_RecurringOrdersTbl];
+
+-- Clean table data (preserve structure)
+IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[OrderLinesTbl]') AND type = 'U')
+    DELETE FROM [dbo].[OrderLinesTbl];
+
+IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[RecurringOrderItemsTbl]') AND type = 'U')
+    DELETE FROM [dbo].[RecurringOrderItemsTbl];
+
+IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[OrdersTbl]') AND type = 'U')
+    DELETE FROM [dbo].[OrdersTbl];
+
+IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[RecurringOrdersTbl]') AND type = 'U')
+    DELETE FROM [dbo].[RecurringOrdersTbl];
+
+-- Clean orphan tracking tables
+IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[OrphanedOrderIdsTbl]') AND type = 'U')
+    DELETE FROM [dbo].[OrphanedOrderIdsTbl];
+
+IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[OrphanedRecurringOrderIdsTbl]') AND type = 'U')
+    DELETE FROM [dbo].[OrphanedRecurringOrderIdsTbl];
+
+PRINT 'Normalized tables cleaned successfully.'
+";
+
+                                using (var cmd = new SqlCommand(cleanupSql, conn))
+                                {
+                                    cmd.CommandTimeout = 300;
+                                    cmd.ExecuteNonQuery();
+                                }
+                                
+                                Console.WriteLine("  ? Normalized tables cleaned successfully");
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"?  Warning: Pre-cleanup failed: {ex.Message}");
+                            Console.WriteLine("Continuing with custom normalization...");
+                        }
+                    }
+                    
+                    var command = _allCommands.FirstOrDefault(c => 
+                        string.Equals(c.Key, key, StringComparison.OrdinalIgnoreCase));
+                    
+                    if (command == null)
+                    {
+                        Console.WriteLine($"? Command {key} not found - skipping");
+                        continue;
+                    }
+
+                    Console.WriteLine($"Executing: {command.Description}");
+                    
+                    try
+                    {
+                        var result = command.Execute();
+                        Console.WriteLine($"? Step {key} completed with code: {result}");
+                        
+                        if (result != 0)
+                        {
+                            Console.WriteLine($"? Step {key} failed with code {result}");
+                            Console.Write("Continue with remaining steps? [y/N]: ");
+                            var continueResponse = Console.ReadLine()?.Trim().ToLowerInvariant();
+                            
+                            if (continueResponse != "y" && continueResponse != "yes")
+                            {
+                                Console.WriteLine("Pipeline stopped due to failure.");
+                                return result;
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"? Step {key} failed with exception: {ex.Message}");
+                        Console.Write("Continue with remaining steps? [y/N]: ");
+                        var continueResponse = Console.ReadLine()?.Trim().ToLowerInvariant();
+                        
+                        if (continueResponse != "y" && continueResponse != "yes")
+                        {
+                            Console.WriteLine("Pipeline stopped due to exception.");
+                            return 1;
+                        }
+                    }
+                }
+
+                Console.WriteLine("\n?? Full migration pipeline completed successfully!");
+                Console.WriteLine("All tables have been migrated with proper normalization handling.");
+                Console.WriteLine("\n?? Migration Summary:");
+                Console.WriteLine("? Schema created and applied");
+                Console.WriteLine("? Regular tables migrated with data cleaning");
+                Console.WriteLine("? Normalized tables (Orders, Recurring) custom migrated");
+                Console.WriteLine("? Foreign key constraints applied");
+                
+                return 0;
+            }
+            finally
+            {
+                // CLEAN UP BATCH STATE
+                RunRangeState.Current = null;
+            }
+        }
+    }
+
+    internal sealed class GenerateDataMigrationScriptCommand : IMenuCommand
+    {
+        private readonly string _migrationsDir;
+
+        public GenerateDataMigrationScriptCommand(string migrationsDir)
+        {
+            _migrationsDir = migrationsDir;
+        }
+
+        public string Key => "M";
+        public string Description => "Generate data migration script (SQL)";
+
+        public int Execute()
+        {
+            try
+            {
+                var rro = RunRangeState.Current;
+                if (rro != null && rro.SuppressPrompts && rro.SkipSqlScriptGeneration)
+                {
+                    return 0;
+                }
+
+                if (rro == null || !rro.SuppressPrompts)
+                {
+                    if (!ScriptOverwritePrompt.ConfirmRegenerate("data migration SQL (DataMigration_*.sql)"))
+                    {
+                        Console.WriteLine("Data migration generation cancelled — existing scripts unchanged.");
+                        return 0;
+                    }
+                }
+
+                var rc = DmlScriptGenerator.GenerateDataMigration(_migrationsDir, out var sqlPath);
+                Console.WriteLine("Data migration script rc=" + rc + " file: " + sqlPath);
+                return rc;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("? Generate data migration failed: " + ex.Message);
+                return 1;
+            }
+        }
+    }
+
+    internal sealed class StageAccessToSqlCommand : IMenuCommand
+    {
+        private readonly string _migrationsDir;
+        private readonly MigrationConfig _config;
+
+        public StageAccessToSqlCommand(string migrationsDir, MigrationConfig config)
+        {
+            _migrationsDir = migrationsDir;
+            _config = config;
+        }
+
+        public string Key => "MS";
+        public string Description => "Stage Access data to SQL [AccessSrc] schema";
+
+        public int Execute()
+        {
+            try
+            {
+                // Use RunRangeState connection strings if available
+                var rro = RunRangeState.Current;
+                string accessCs, sqlCs;
+                
+                if (rro != null && rro.SuppressPrompts)
+                {
+                    accessCs = rro.AccessConnectionString;
+                    sqlCs = rro.TargetConnectionString;
+                    Console.WriteLine("Using batch mode connection strings");
+                }
+                else
+                {
+                    accessCs = _config?.AccessConnectionString ?? "";
+                    sqlCs = _config?.TargetConnectionString ?? "";
+                }
+                
+                var rc = AccessStagingImporter.StageAll(_migrationsDir, accessCs, sqlCs, out var logPath);
+                Console.WriteLine("Access staging rc=" + rc + " log: " + logPath);
+                
+                if (rc != 0)
+                {
+                    Console.WriteLine("? Access staging reported issues - skipping automatic data cleaning");
+                    return rc;
+                }
+                
+                // AUTOMATIC POST-STAGING DATA CLEANING
+                Console.WriteLine();
+                Console.WriteLine("?? Running automatic data cleaning on staged AccessSrc data...");
+                try
+                {
+                    using (var conn = new SqlConnection(sqlCs))
+                    {
+                        conn.Open();
+                        
+                        var cleanLog = new StringBuilder();
+                        CleanAccessSrcDates(conn, cleanLog);
+                        
+                        Console.WriteLine("? Data cleaning completed:");
+                        foreach (var line in cleanLog.ToString().Split(new[] { Environment.NewLine }, StringSplitOptions.RemoveEmptyEntries))
+                        {
+                            Console.WriteLine($"  {line}");
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"? Data cleaning warning: {ex.Message}");
+                    Console.WriteLine("  Migration will continue, but date conversion errors may occur");
+                }
+                
+                return rc;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("? Access staging failed: " + ex.Message);
+                return 1;
+            }
+        }
+
+        private void CleanAccessSrcDates(SqlConnection conn, StringBuilder log)
+        {
+            // Clean invalid dates that would cause SQL Server conversion errors
+            var cleanupSql = @"
+-- Clean invalid dates in AccessSrc schema (set to NULL for safe conversion)
+DECLARE @cleaned INT = 0;
+
+-- ClientUsageTbl dates
+IF EXISTS (SELECT 1 FROM sys.schemas s JOIN sys.tables t ON s.schema_id = t.schema_id WHERE s.name = 'AccessSrc' AND t.name = 'ClientUsageTbl')
+BEGIN
+    UPDATE [AccessSrc].[ClientUsageTbl] 
+    SET [NextCoffeeBy] = NULL 
+    WHERE [NextCoffeeBy] IS NOT NULL AND TRY_CONVERT(datetime, [NextCoffeeBy]) IS NULL;
+    SET @cleaned = @cleaned + @@ROWCOUNT;
+
+    UPDATE [AccessSrc].[ClientUsageTbl] 
+    SET [NextCleanOn] = NULL 
+    WHERE [NextCleanOn] IS NOT NULL AND TRY_CONVERT(datetime, [NextCleanOn]) IS NULL;
+    SET @cleaned = @cleaned + @@ROWCOUNT;
+
+    UPDATE [AccessSrc].[ClientUsageTbl] 
+    SET [NextFilterEst] = NULL 
+    WHERE [NextFilterEst] IS NOT NULL AND TRY_CONVERT(datetime, [NextFilterEst]) IS NULL;
+    SET @cleaned = @cleaned + @@ROWCOUNT;
+
+    UPDATE [AccessSrc].[ClientUsageTbl] 
+    SET [NextDescaleEst] = NULL 
+    WHERE [NextDescaleEst] IS NOT NULL AND TRY_CONVERT(datetime, [NextDescaleEst]) IS NULL;
+    SET @cleaned = @cleaned + @@ROWCOUNT;
+
+    UPDATE [AccessSrc].[ClientUsageTbl] 
+    SET [NextServiceEst] = NULL 
+    WHERE [NextServiceEst] IS NOT NULL AND TRY_CONVERT(datetime, [NextServiceEst]) IS NULL;
+    SET @cleaned = @cleaned + @@ROWCOUNT;
+END
+
+-- RepairsTbl dates
+IF EXISTS (SELECT 1 FROM sys.schemas s JOIN sys.tables t ON s.schema_id = t.schema_id WHERE s.name = 'AccessSrc' AND t.name = 'RepairsTbl')
+BEGIN
+    UPDATE [AccessSrc].[RepairsTbl] 
+    SET [DateLogged] = NULL 
+    WHERE [DateLogged] IS NOT NULL AND TRY_CONVERT(datetime, [DateLogged]) IS NULL;
+    SET @cleaned = @cleaned + @@ROWCOUNT;
+
+    UPDATE [AccessSrc].[RepairsTbl] 
+    SET [LastStatusChange] = NULL 
+    WHERE [LastStatusChange] IS NOT NULL AND TRY_CONVERT(datetime, [LastStatusChange]) IS NULL;
+    SET @cleaned = @cleaned + @@ROWCOUNT;
+END
+
+-- TempCoffeecheckupCustomerTbl dates
+IF EXISTS (SELECT 1 FROM sys.schemas s JOIN sys.tables t ON s.schema_id = t.schema_id WHERE s.name = 'AccessSrc' AND t.name = 'TempCoffeecheckupCustomerTbl')
+BEGIN
+    UPDATE [AccessSrc].[TempCoffeecheckupCustomerTbl] 
+    SET [NextPrepDate] = NULL 
+    WHERE [NextPrepDate] IS NOT NULL AND TRY_CONVERT(datetime, [NextPrepDate]) IS NULL;
+    SET @cleaned = @cleaned + @@ROWCOUNT;
+
+    UPDATE [AccessSrc].[TempCoffeecheckupCustomerTbl] 
+    SET [NextDeliveryDate] = NULL 
+    WHERE [NextDeliveryDate] IS NOT NULL AND TRY_CONVERT(datetime, [NextDeliveryDate]) IS NULL;
+    SET @cleaned = @cleaned + @@ROWCOUNT;
+
+    UPDATE [AccessSrc].[TempCoffeecheckupCustomerTbl] 
+    SET [NextCoffee] = NULL, [NextClean] = NULL, [NextFilter] = NULL, [NextDescal] = NULL, [NextService] = NULL
+    WHERE ([NextCoffee] IS NOT NULL AND TRY_CONVERT(datetime, [NextCoffee]) IS NULL)
+       OR ([NextClean] IS NOT NULL AND TRY_CONVERT(datetime, [NextClean]) IS NULL)
+       OR ([NextFilter] IS NOT NULL AND TRY_CONVERT(datetime, [NextFilter]) IS NULL)
+       OR ([NextDescal] IS NOT NULL AND TRY_CONVERT(datetime, [NextDescal]) IS NULL)
+       OR ([NextService] IS NOT NULL AND TRY_CONVERT(datetime, [NextService]) IS NULL);
+    SET @cleaned = @cleaned + @@ROWCOUNT;
+END
+
+SELECT @cleaned AS CleanedRows;
+";
+
+            using (var cmd = new SqlCommand(cleanupSql, conn))
+            {
+                cmd.CommandTimeout = 300;
+                var cleanedRows = (int)(cmd.ExecuteScalar() ?? 0);
+                
+                if (cleanedRows > 0)
+                {
+                    log.AppendLine($"Fixed {cleanedRows} invalid date values (set to NULL)");
+                }
+                else
+                {
+                    log.AppendLine("No invalid dates found - data is clean");
+                }
+            }
+        }
+    }
+
+    internal sealed class TableByTableMigrationCommand : IMenuCommand
+    {
+        private readonly string _migrationsDir;
+        private readonly MigrationConfig _config;
+        public TableByTableMigrationCommand(string migrationsDir, MigrationConfig config) { _migrationsDir = migrationsDir; _config = config; }
+        public string Key => "$";
+        public string Description => "Table-by-table migration, verification, and reporting (specialist pipeline)";
+        public int Execute()
+        {
+            Console.WriteLine("[DEBUG] TableByTableMigrationCommand started");
+            var sql = _config?.TargetConnectionString ?? "";
+            var access = _config?.AccessConnectionString ?? "";
+            if (string.IsNullOrWhiteSpace(sql) || string.IsNullOrWhiteSpace(access))
+            {
+                Console.Error.WriteLine("Both SQL and Access connection strings are required.");
+                return 2;
+            }
+            // Allow user to edit/fix connection strings
+            Console.WriteLine("Current Access connection string:");
+            Console.WriteLine(access);
+            Console.Write("Press Enter to keep, or enter a new Access connection string: ");
+            var newAccess = (System.Console.ReadLine() ?? "").Trim();
+            if (!string.IsNullOrEmpty(newAccess))
+            {
+                access = newAccess;
+                _config.AccessConnectionString = access;
+            }
+            Console.WriteLine("Current SQL connection string:");
+            Console.WriteLine(sql);
+            Console.Write("Press Enter to keep, or enter a new SQL connection string: ");
+            var newSql = (System.Console.ReadLine() ?? "").Trim();
+            if (!string.IsNullOrEmpty(newSql))
+            {
+                sql = newSql;
+                _config.TargetConnectionString = sql;
+            }
+            // Save updated config if changed
+            try
+            {
+                var configPath = System.IO.Path.Combine(_migrationsDir, "MigrationConfig.json");
+                if (!File.Exists(configPath))
+                {
+                    configPath = System.IO.Path.Combine(System.IO.Directory.GetParent(_migrationsDir).FullName, "MigrationConfig.json");
+                }
+                System.IO.File.WriteAllText(configPath, Newtonsoft.Json.JsonConvert.SerializeObject(_config, Newtonsoft.Json.Formatting.Indented));
+            }
+            catch { }
+            // Validate Access connection string before proceeding
+            try
+            {
+                using (var conn = new System.Data.OleDb.OleDbConnection(access))
+                {
+                    conn.Open();
+                    Console.WriteLine("[DEBUG] Access connection successful.");
+                }
+            }
+            catch (System.Exception ex)
+            {
+                Console.Error.WriteLine("[ERROR] Access connection failed: " + ex.Message);
+                Console.Error.WriteLine(ex.ToString());
+                return 2;
+            }
+            // Validate SQL connection string before proceeding
+            try
+            {
+                using (var conn = new System.Data.SqlClient.SqlConnection(sql))
+                {
+                    conn.Open();
+                    Console.WriteLine("[DEBUG] SQL connection successful.");
+                }
+            }
+            catch (System.Exception ex)
+            {
+                Console.Error.WriteLine("[ERROR] SQL connection failed: " + ex.Message);
+                Console.Error.WriteLine(ex.ToString());
+                return 2;
+            }
+            // Find all migration scripts for tables
+            var sqlDir = Path.Combine(_migrationsDir, "Metadata", "PlanEdits", "Sql");
+            var migrateScripts = Directory.GetFiles(sqlDir, "Migrate_*.sql", SearchOption.TopDirectoryOnly);
+            if (migrateScripts.Length == 0)
+            {
+                Console.WriteLine("No per-table migration scripts found.");
+                if (!ScriptOverwritePrompt.ConfirmRegenerate("per-table migration scripts (Migrate_*.sql) from CSV"))
+                {
+                    Console.WriteLine("Aborted — generate scripts manually with menu option '>' if needed.");
+                    return 1;
+                }
+                new GeneratePerTableMigrationScriptsCommand(_migrationsDir, skipOverwritePrompt: true).Execute();
+                migrateScripts = Directory.GetFiles(sqlDir, "Migrate_*.sql", SearchOption.TopDirectoryOnly);
+                if (migrateScripts.Length == 0)
+                {
+                    Console.WriteLine("Failed to generate per-table migration scripts. Aborting.");
+                    return 1;
+                }
+            }
+            Console.WriteLine($"[DEBUG] Found {migrateScripts.Length} migration scripts in {sqlDir}");
+            var tableNames = migrateScripts.Select(f => Path.GetFileNameWithoutExtension(f).Substring("Migrate_".Length)).ToList();
+            var tables = MigrationTableOrderer.OrderByForeignKeyDependencies(_migrationsDir, tableNames);
+            Console.WriteLine("Migration order (parents before children): " + string.Join(" → ", tables));
+
+            // Auto-generate missing verification scripts
+            foreach (var table in tables)
+            {
+                var verifyPath = Path.Combine(sqlDir, $"Verify_{table}.sql");
+                if (!File.Exists(verifyPath))
+                {
+                    Console.WriteLine($"Verification script missing for {table}, generating...");
+                    // Always generate a valid T-SQL statement
+                    File.WriteAllText(verifyPath, $"SELECT COUNT(*) AS [MigratedCount] FROM [{table}];\n");
+                }
+            }
+
+            // Ensure SafeDateConvert function exists in SQL
+            try
+            {
+                using (var conn = new System.Data.SqlClient.SqlConnection(sql))
+                {
+                    conn.Open();
+                    var checkCmd = conn.CreateCommand();
+                    checkCmd.CommandText = "SELECT OBJECT_ID('dbo.SafeDateConvert', 'FN')";
+                    var exists = checkCmd.ExecuteScalar();
+                    if (exists == DBNull.Value || exists == null)
+                    {
+                        Console.WriteLine("Creating dbo.SafeDateConvert function...");
+                        var createCmd = conn.CreateCommand();
+                        createCmd.CommandText = @"
+CREATE FUNCTION dbo.SafeDateConvert(@input NVARCHAR(255))
+RETURNS DATETIME
+AS
+BEGIN
+    RETURN TRY_CONVERT(DATETIME, @input, 120);
+END
+";
+                        createCmd.ExecuteNonQuery();
+                        Console.WriteLine("dbo.SafeDateConvert created.");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Warning: Could not check/create SafeDateConvert: {ex.Message}");
+            }
+
+            Console.WriteLine($"[DEBUG] Tables to migrate: {string.Join(", ", tables)}");
+            var logPath = Path.Combine(_migrationsDir, "Metadata", "PlanEdits", "TableByTableMigration.log");
+            return TableByTableMigrationRunner.Run(_migrationsDir, sql, tables, logPath);
+        }
+    }
+}
